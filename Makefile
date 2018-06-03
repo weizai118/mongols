@@ -1,5 +1,5 @@
-
-PROJECT=libmongols.so
+NAME=mongols
+PROJECT=lib$(NAME).so
 CPPSRC=$(shell find . -type f | egrep *.cpp$$|sed -e 's/.*indexer.cpp$$//')
 CPPOBJ=$(patsubst %.cpp,%.o,$(CPPSRC))
 CCSRC=$(shell find . -type f | egrep *.cc$$)
@@ -16,14 +16,14 @@ CC=gcc
 CXX=g++
 
 CFLAGS+=-O3 -std=c11 -Wall -fPIC 
-CFLAGS+=-Iinc/mycpp -Iinc/mycpp/lib -Iinc/mycpp/qlibc -Isrc/qlibc/internal
-#CFLAGS+=`pkg-config --cflags openssl`
+CFLAGS+=-Iinc/mycpp -Iinc/mongols/lib -Iinc/mongols/qlibc -Isrc/qlibc/internal
+CFLAGS+=`pkg-config --cflags openssl`
 CFLAGS+=-D_GNU_SOURCE -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64
 CXXFLAGS+=-O3 -std=c++11 -Wall -fPIC 
-CXXFLAGS+=-Iinc/mycpp -Iinc/mycpp/lib -Iinc/mycpp/qlibc -Isrc/qlibc/internal
-#CXXFLAGS+=`pkg-config --cflags openssl` 
+CXXFLAGS+=-Iinc/mongols -Iinc/mongols/lib -Iinc/mongols/qlibc -Isrc/qlibc/internal
+CXXFLAGS+=`pkg-config --cflags openssl` 
 CXXFLAGS+=-D_GNU_SOURCE -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64
-#LDLIBS+=`pkg-config --libs openssl`  -lpcre -lz -lpthread -ldl -lstdc++
+LDLIBS+=`pkg-config --libs openssl`  -lpcre -lz -lpthread -ldl -lstdc++
 LDFLAGS+=-shared
 
 
@@ -57,4 +57,6 @@ install:
 	test -d $(INSTALL_DIR)/ || mkdir -p $(INSTALL_DIR)/
 	install $(PROJECT) $(INSTALL_DIR)/lib
 	cp -R inc/mongols $(INSTALL_DIR)/include
+	mkdir -pv $(NAME).pc $(INSTALL_DIR)/lib/pkgconfig
+	install mongols.pc $(INSTALL_DIR)/lib/pkgconfig
 
