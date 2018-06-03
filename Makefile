@@ -55,5 +55,6 @@ clean:
 
 install:
 	test -d $(INSTALL_DIR)/ || mkdir -p $(INSTALL_DIR)/
-	install $(PROJECT) $(INSTALL_DIR)
+	install $(PROJECT) $(INSTALL_DIR)/lib
+	cp -R inc/mongols $(INSTALL_DIR)/include
 
