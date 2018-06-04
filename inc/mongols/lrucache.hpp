@@ -3,7 +3,7 @@
 
 #include "lib/LRUCache11.hpp"
 
-namespace mycpp {
+namespace mongols {
     namespace cache {
 
         template<typename key_t, typename value_t>

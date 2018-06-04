@@ -5,7 +5,7 @@
 #include <string>
 #include <dlfcn.h>
 
-namespace hi {
+namespace mongols {
 
     template< class T>
     class module {

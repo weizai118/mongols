@@ -5,7 +5,7 @@
 #include <string>
 #include <list>
 
-namespace mycpp {
+namespace mongols {
 
     class posix_regex {
     public:

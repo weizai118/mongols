@@ -1,0 +1,12 @@
+prefix=/usr/local
+exec_prefix=${prefix}
+includedir=${prefix}/include
+libdir=${exec_prefix}/lib
+
+Name: mongols
+Description: The mongols library,a library for c/c++
+Version: 0.1.0
+URL: https://github.com/webcpp/mongols
+Libs.private: -lssl -lcrypto -lm -lpcre -lz -lpthread -ldl -lstdc++
+Cflags: -I${includedir}/mongols
+Libs: -L${libdir} -lmongols

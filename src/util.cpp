@@ -18,9 +18,9 @@
 
 
 
-namespace mycpp {
+namespace mongols {
 
-    inline std::string md5(const std::string& str) {
+    std::string md5(const std::string& str) {
         unsigned char digest[16] = {0};
         MD5_CTX ctx;
         MD5_Init(&ctx);
@@ -38,13 +38,13 @@ namespace mycpp {
         return std::string((char*) tmp, 32);
     }
 
-    inline std::string random_string(const std::string& s) {
+    std::string random_string(const std::string& s) {
         time_t now = time(NULL);
         char* now_str = ctime(&now);
-        return mycpp::md5(s + now_str);
+        return mongols::md5(s + now_str);
     }
 
-    inline void read_file(const std::string& path, std::string& out) {
+    void read_file(const std::string& path, std::string& out) {
         std::ifstream fs(path, std::ios_base::binary);
         fs.seekg(0, std::ios_base::end);
         auto size = fs.tellg();
@@ -53,26 +53,26 @@ namespace mycpp {
         fs.read(&out[0], size);
     }
 
-    inline bool is_file(const std::string& s) {
+    bool is_file(const std::string& s) {
         struct stat st;
         return stat(s.c_str(), &st) >= 0 && S_ISREG(st.st_mode);
     }
 
-    inline bool is_dir(const std::string& s) {
+    bool is_dir(const std::string& s) {
         struct stat st;
         return stat(s.c_str(), &st) >= 0 && S_ISDIR(st.st_mode);
     }
 
     static unsigned mday[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 
-    inline std::string http_time(time_t *t) {
+    std::string http_time(time_t *t) {
         struct tm * timeinfo = gmtime(t);
         char buffer [80] = {0};
         size_t n = strftime(buffer, 80, "%a, %d %b %Y %T GMT", timeinfo);
         return std::string(buffer, n);
     }
 
-    inline time_t parse_http_time(u_char* value, size_t len) {
+    time_t parse_http_time(u_char* value, size_t len) {
         u_char *p, *end;
         int month;
         uint day = 0, year = 0, hour = 0, min = 0, sec = 0;
@@ -322,7 +322,7 @@ namespace mycpp {
         return (time_t) time;
     }
 
-    inline std::string trim(const std::string& s) {
+    std::string trim(const std::string& s) {
         auto it = s.begin();
         while (it != s.end() && isspace(*it)) {
             it++;
@@ -334,7 +334,7 @@ namespace mycpp {
         return std::string(it, rit.base());
     }
 
-    inline void parse_param(const std::string& data, std::unordered_map<std::string, std::string>& result, char c = '&', char cc = '=') {
+    void parse_param(const std::string& data, std::unordered_map<std::string, std::string>& result, char c = '&', char cc = '=') {
         if (data.empty())return;
         size_t start = 0, p, q;
         while (true) {
@@ -355,7 +355,7 @@ namespace mycpp {
         }
     }
 
-    inline void split(const std::string& s, char delim, std::vector<std::string>& v) {
+    void split(const std::string& s, char delim, std::vector<std::string>& v) {
         auto i = 0;
         auto pos = s.find(delim);
         while (pos != std::string::npos) {
