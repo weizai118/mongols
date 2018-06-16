@@ -16,14 +16,14 @@ CC=gcc
 CXX=g++
 
 CFLAGS+=-O3 -std=c11 -Wall -fPIC 
-CFLAGS+=-Iinc/mycpp -Iinc/mongols/lib -Iinc/mongols/qlibc -Isrc/qlibc/internal
+CFLAGS+=-Iinc/mycpp -Iinc/mongols/lib -Iinc/mongols/qlibc -Isrc/qlibc/internal -Iinc/mongols/cJSON
 CFLAGS+=`pkg-config --cflags openssl`
 CFLAGS+=-D_GNU_SOURCE -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64
 CXXFLAGS+=-O3 -std=c++11 -Wall -fPIC 
-CXXFLAGS+=-Iinc/mongols -Iinc/mongols/lib -Iinc/mongols/qlibc -Isrc/qlibc/internal
+CXXFLAGS+=-Iinc/mongols -Iinc/mongols/lib -Iinc/mongols/qlibc -Isrc/qlibc/internal -Iinc/mongols/cJSON
 CXXFLAGS+=`pkg-config --cflags openssl` 
 CXXFLAGS+=-D_GNU_SOURCE -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64
-LDLIBS+=-lssl -lcrypto  -lpcre -lz -lpthread -ldl -lstdc++
+LDLIBS+=-lssl -lcrypto  -lpcre -lz -lpthread -ldl -lm -lstdc++
 LDFLAGS+=-shared
 
 
