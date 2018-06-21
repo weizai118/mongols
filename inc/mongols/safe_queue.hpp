@@ -24,8 +24,8 @@ namespace mongols {
 
         void push(T v) {
             std::lock_guard<std::mutex> lk(this->mtx);
-            this->q.push(v);
-            this->cv.notify_all();
+            this->q.push(std::move(v));
+            this->cv.notify_one();
         }
 
         void wait_and_pop(T& v) {
