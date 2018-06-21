@@ -11,6 +11,8 @@
 
 #include <string>
 #include <iostream>
+#include <thread>
+#include <vector>
 
 
 #include "tcp_server.hpp"
@@ -19,9 +21,15 @@
 
 namespace mongols {
 
-    tcp_server::tcp_server(const std::string& host, int port, int max_event_size, int timeout, size_t buffer_size) :
+    tcp_server::tcp_server(const std::string& host
+            , int port
+            , int timeout
+            , size_t buffer_size
+            , size_t thread_size
+            , int max_event_size) :
     epoll(max_event_size, timeout)
-    , host(host), port(port), listenfd(0), serveraddr(), buffer_size(buffer_size) {
+    , host(host), port(port), listenfd(0), serveraddr()
+    , buffer_size(buffer_size), thread_size(thread_size) {
 
     }
 
@@ -65,7 +73,31 @@ namespace mongols {
 
         listen(this->listenfd, 10);
 
+        std::function<void(int) > w = [&](int fd) {
+            char buffer[this->buffer_size] = {0};
+            ssize_t ret = recv(fd, buffer, buffer_size, MSG_DONTWAIT);
+            if (ret >= 0) {
+                std::string input = std::move(std::string(buffer, ret))
+                        , output = std::move(g(input));
+                send(fd, output.c_str(), output.size(), MSG_DONTWAIT);
+            }
+            this->epoll.del(fd);
+            close(fd);
+            std::this_thread::yield();
+        };
 
+        std::vector<std::thread> th;
+        for (size_t i = 0; i < this->thread_size; ++i) {
+            th.push_back(std::move(std::thread(
+                    [&]() {
+                        while (1) {
+                            int fd;
+                            this->q.wait_and_pop(fd);
+                            w(fd);
+                        }
+                    }
+            )));
+        }
 
         std::function<void(struct epoll_event*) > f = [&](struct epoll_event * event) {
             if ((event->events & EPOLLERR) ||
@@ -87,18 +119,11 @@ namespace mongols {
                     }
                 }
             } else {
-                char buffer[this->buffer_size] = {0};
-                ssize_t ret = recv(event->data.fd, buffer, buffer_size, 0);
-                if (ret > 0) {
-                    std::string input = std::move(std::string(buffer, ret))
-                            , output = std::move(g(input));
-                    if (send(event->data.fd, output.c_str(), output.size(), 0) < 0) {
-                        goto ev_error;
-                    }
+                if (this->thread_size > 0) {
+                    this->q.push(event->data.fd);
+                } else {
+                    w(event->data.fd);
                 }
-ev_error:
-                this->epoll.del(event->data.fd);
-                close(event->data.fd);
             }
         };
 
@@ -111,6 +136,9 @@ ev_error:
         }
 
 
+        for (auto& i : th) {
+            i.join();
+        }
 
 
     }
