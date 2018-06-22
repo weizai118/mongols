@@ -75,7 +75,7 @@ namespace mongols {
 
         std::function<void(int) > w = [&](int fd) {
             char buffer[this->buffer_size] = {0};
-            ssize_t ret = recv(fd, buffer, buffer_size, MSG_DONTWAIT);
+            ssize_t ret = recv(fd, buffer, this->buffer_size, MSG_DONTWAIT);
             if (ret >= 0) {
                 std::string input = std::move(std::string(buffer, ret))
                         , output = std::move(g(input));
@@ -114,6 +114,8 @@ namespace mongols {
                     if (connfd > 0) {
                         this->epoll.add(connfd, EPOLLIN | EPOLLRDHUP | EPOLLET);
                         setnonblocking(connfd);
+                        this->epoll.add(connfd, EPOLLIN | EPOLLRDHUP | EPOLLET);
+                        
                     } else {
                         break;
                     }
