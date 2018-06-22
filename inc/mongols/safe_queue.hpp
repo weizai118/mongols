@@ -30,7 +30,7 @@ namespace mongols {
 
         void wait_and_pop(T& v) {
             std::unique_lock<std::mutex> lk(this->mtx);
-            this->cv.wait(lk, [this]() {
+            this->cv.wait(lk, [&]() {
                 return !this->q.empty();
             });
             v = std::move(this->q.front());

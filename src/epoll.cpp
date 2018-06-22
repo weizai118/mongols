@@ -8,7 +8,7 @@ namespace mongols {
 
     epoll::epoll(int ev_size, int timeout)
     : epfd(0)
-    , ev_size(ev_size)
+    , ev_size(ev_size), real_ev_size(0)
     , timeout(timeout)
     , ev(), evs(0) {
         this->epfd = epoll_create1(0);
@@ -19,6 +19,10 @@ namespace mongols {
 
     epoll::~epoll() {
         if (this->evs != 0) {
+            for (int i = 0; i < this->real_ev_size; ++i) {
+                this->del(this->evs[i].data.fd);
+                close(this->evs[i].data.fd);
+            }
             free(this->evs);
         }
         close(this->epfd);
@@ -45,12 +49,9 @@ namespace mongols {
         return epoll_ctl(this->epfd, EPOLL_CTL_MOD, fd, &this->ev) == 0;
     }
 
-    int epoll::wait() {
-        return epoll_wait(this->epfd, this->evs, this->ev_size, this->timeout);
-    }
-
-    void epoll::loop(int size, const std::function<void(struct epoll_event*) >& handler) {
-        for (int i = 0; i < size; ++i) {
+    void epoll::loop(const std::function<void(struct epoll_event*) >& handler) {
+        this->real_ev_size = epoll_wait(this->epfd, this->evs, this->ev_size, this->timeout);
+        for (int i = 0; i < this->real_ev_size; ++i) {
             handler(&this->evs[i]);
         }
     }
