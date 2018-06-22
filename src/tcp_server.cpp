@@ -106,6 +106,7 @@ ev_error:
                             int fd;
                             this->q.wait_and_pop(fd);
                             w(fd);
+                            std::this_thread::yield();
                         }
                     }
             )));
