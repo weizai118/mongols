@@ -13,7 +13,6 @@
 #include <iostream>
 #include <thread>
 #include <vector>
-#include <zlib.h>
 
 
 #include "tcp_server.hpp"
@@ -35,6 +34,15 @@ namespace mongols {
     }
 
     tcp_server::~tcp_server() {
+        for (;;) {
+            int v;
+            if (this->q.try_pop(v)) {
+                this->epoll.del(v);
+                close(v);
+            } else {
+                break;
+            }
+        }
         if (this->listenfd > 0) {
             close(this->listenfd);
         }
@@ -80,11 +88,9 @@ namespace mongols {
             if (ret >= 0) {
                 std::string input = std::move(std::string(buffer, ret));
                 std::pair < std::string, bool> output = std::move(g(input));
-                send(fd, output.first.c_str(), output.first.size(), MSG_DONTWAIT);
-                if (output.second) {
+                if (send(fd, output.first.c_str(), output.first.size(), MSG_DONTWAIT) < 0 || output.second) {
                     goto ev_error;
                 }
-
             } else {
 ev_error:
                 this->epoll.del(fd);
