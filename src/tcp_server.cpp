@@ -13,6 +13,7 @@
 #include <iostream>
 #include <thread>
 #include <vector>
+#include <zlib.h>
 
 
 #include "tcp_server.hpp"
@@ -39,7 +40,7 @@ namespace mongols {
         }
     }
 
-    void tcp_server::run(const std::function<std::string(const std::string&) >& g) {
+    void tcp_server::run(const std::function<std::pair<std::string, bool>(const std::string&) >& g) {
 
         int connfd;
         struct timeval timeout;
@@ -77,13 +78,18 @@ namespace mongols {
             char buffer[this->buffer_size] = {0};
             ssize_t ret = recv(fd, buffer, this->buffer_size, MSG_DONTWAIT);
             if (ret >= 0) {
-                std::string input = std::move(std::string(buffer, ret))
-                        , output = std::move(g(input));
-                send(fd, output.c_str(), output.size(), MSG_DONTWAIT);
+                std::string input = std::move(std::string(buffer, ret));
+                std::pair < std::string, bool> output = std::move(g(input));
+                send(fd, output.first.c_str(), output.first.size(), MSG_DONTWAIT);
+                if (output.second) {
+                    goto ev_error;
+                }
+
+            } else {
+ev_error:
+                this->epoll.del(fd);
+                close(fd);
             }
-            this->epoll.del(fd);
-            close(fd);
-            std::this_thread::yield();
         };
 
         std::vector<std::thread> th;
@@ -115,7 +121,7 @@ namespace mongols {
                         this->epoll.add(connfd, EPOLLIN | EPOLLRDHUP | EPOLLET);
                         setnonblocking(connfd);
                         this->epoll.add(connfd, EPOLLIN | EPOLLRDHUP | EPOLLET);
-                        
+
                     } else {
                         break;
                     }

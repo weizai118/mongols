@@ -4,6 +4,7 @@
 
 #include <netinet/in.h>   
 #include <string>
+#include <utility>
 
 
 #include "safe_queue.hpp"
@@ -19,7 +20,7 @@ namespace mongols {
 
 
     public:
-        void run(const std::function<std::string(const std::string&) >&);
+        void run(const std::function<std::pair<std::string,bool>(const std::string&) >&);
     private:
         mongols::epoll epoll;
         std::string host;
