@@ -16,7 +16,7 @@ CC=gcc
 CXX=g++
 
 CFLAGS+=-O3 -std=c11 -Wall -fPIC 
-CFLAGS+=-Iinc/mycpp -Iinc/mongols/lib -Iinc/mongols/qlibc -Isrc/qlibc/internal -Iinc/mongols/cJSON
+CFLAGS+=-Iinc/mongols/lib -Iinc/mongols/qlibc -Isrc/qlibc/internal -Iinc/mongols/cJSON
 CFLAGS+=`pkg-config --cflags openssl`
 CFLAGS+=-D_GNU_SOURCE -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64
 CXXFLAGS+=-O3 -std=c++11 -Wall -fPIC 
