@@ -42,8 +42,8 @@ namespace mongols {
             , size_t buffer_size
             , size_t thread_size
             , int max_event_size) :
-    epoll(max_event_size, timeout)
-    , host(host), port(port), listenfd(0), serveraddr()
+    epoll(max_event_size, -1)
+    , host(host), port(port), listenfd(0), timeout(timeout), serveraddr()
     , buffer_size(buffer_size), th_pool(thread_size) {
 
     }
@@ -61,11 +61,11 @@ namespace mongols {
         setsockopt(this->listenfd, SOL_SOCKET, SO_REUSEPORT, &on, sizeof (on));
 
         struct timeval send_timeout, recv_timeout;
-        send_timeout.tv_sec = this->epoll.expires() < 0 ? 5 : this->epoll.expires() / 1000;
+        send_timeout.tv_sec = this->timeout;
         send_timeout.tv_usec = 0;
         setsockopt(this->listenfd, SOL_SOCKET, SO_SNDTIMEO, &send_timeout, sizeof (send_timeout));
 
-        recv_timeout.tv_sec = this->epoll.expires() < 0 ? 5 : this->epoll.expires() / 1000;
+        recv_timeout.tv_sec = this->timeout;
         recv_timeout.tv_usec = 0;
         setsockopt(this->listenfd, SOL_SOCKET, SO_RCVTIMEO, &recv_timeout, sizeof (recv_timeout));
 
