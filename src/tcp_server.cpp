@@ -49,6 +49,9 @@ namespace mongols {
     }
 
     tcp_server::~tcp_server() {
+        if (this->listenfd) {
+            close(this->listenfd);
+        }
 
     }
 
@@ -89,20 +92,24 @@ namespace mongols {
 
         listen(this->listenfd, 10);
 
-        std::function<void(int) > w = [&](int fd) {
-            char buffer[this->buffer_size] = {0};
-            ssize_t ret = recv(fd, buffer, this->buffer_size, MSG_DONTWAIT);
-            if (ret >= 0) {
-                std::string input = std::move(std::string(buffer, ret));
-                std::pair < std::string, bool> output = std::move(g(input));
-                if (send(fd, output.first.c_str(), output.first.size(), MSG_DONTWAIT) < 0 || output.second) {
-                    goto ev_error;
-                }
-            } else {
+        std::function<bool(int) > w = [&](int fd) {
+            if (fd > 0) {
+                char buffer[this->buffer_size] = {0};
+                ssize_t ret = recv(fd, buffer, this->buffer_size, MSG_DONTWAIT);
+                if (ret >= 0) {
+                    std::string input = std::move(std::string(buffer, ret));
+                    std::pair < std::string, bool> output = std::move(g(input));
+                    if (send(fd, output.first.c_str(), output.first.size(), MSG_DONTWAIT) < 0 || output.second) {
+                        goto ev_error;
+                    }
+                } else {
 ev_error:
-                this->epoll.del(fd);
-                close(fd);
+                    close(fd);
+                    this->epoll.del(fd);
+
+                }
             }
+            return fd > 0 ? false : true;
         };
 
 
@@ -147,6 +154,12 @@ ev_error:
 
         while (!tcp_server::done) {
             this->epoll.loop(f);
+        }
+
+        for (size_t i = 0; i<this->th_pool.size(); ++i) {
+            this->th_pool.submit(std::bind(w, -1));
+            std::this_thread::yield();
+            usleep(100);
         }
 
     }

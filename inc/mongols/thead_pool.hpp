@@ -5,6 +5,7 @@
 #include <functional>
 #include <vector>
 #include <atomic>
+#include <iostream>
 
 #include "safe_queue.hpp"
 
@@ -32,15 +33,17 @@ namespace mongols {
     class thread_pool {
     private:
         std::atomic_bool done;
-        safe_queue<std::function<void() >> q;
+        safe_queue<std::function<bool() >> q;
         std::vector<std::thread> th;
         join_thread joiner;
 
         void work() {
             while (!this->done) {
-                std::function<void() > task;
+                std::function<bool() > task;
                 this->q.wait_and_pop(task);
-                task();
+                if (task()) {
+                    break;
+                };
                 std::this_thread::yield();
             }
         }
@@ -52,12 +55,13 @@ namespace mongols {
                     this->th.push_back(std::move(std::thread(std::bind(&thread_pool::work, this))));
                 }
             } catch (...) {
+                this->done = true;
             }
         }
 
         virtual~thread_pool() {
             this->done = true;
-            std::function<void() > task;
+            std::function<bool() > task;
             while (this->q.try_pop(task)) {
                 task();
             }
@@ -67,7 +71,6 @@ namespace mongols {
         void submit(F f) {
             this->q.push(f);
         }
-        
 
         size_t size()const {
             return this->th.size();
