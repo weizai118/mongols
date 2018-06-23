@@ -101,8 +101,6 @@ namespace mongols {
                 } else {
 ev_error:
                     close(fd);
-
-
                 }
             }
             return fd > 0 ? false : true;

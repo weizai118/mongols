@@ -10,9 +10,12 @@
 #include "thead_pool.hpp"
 #include "epoll.hpp"
 
+#define CLOSE_CONNECTION true
+#define KEEPALIVE_CONNECTION false
+
 namespace mongols {
 
-    class tcp_server {
+    class tcp_server {        
     public:
         tcp_server() = delete;
         tcp_server(const std::string& host, int port, int timeout = 5000, size_t buffer_size = 1024, size_t thread_size = 0, int max_event_size = 64);
