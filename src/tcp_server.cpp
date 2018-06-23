@@ -49,10 +49,6 @@ namespace mongols {
     }
 
     tcp_server::~tcp_server() {
-        if (this->listenfd) {
-            close(this->listenfd);
-        }
-
     }
 
     void tcp_server::run(const std::function<std::pair<std::string, bool>(const std::string&) >& g) {
@@ -84,7 +80,7 @@ namespace mongols {
         this->setnonblocking(this->listenfd);
 
         if (!this->epoll.is_ready()) {
-            std::cout << "epoll error" << std::endl;
+            perror("epoll error");
             return;
         }
         this->epoll.add(this->listenfd, EPOLLIN | EPOLLET);
@@ -105,7 +101,7 @@ namespace mongols {
                 } else {
 ev_error:
                     close(fd);
-                    this->epoll.del(fd);
+
 
                 }
             }

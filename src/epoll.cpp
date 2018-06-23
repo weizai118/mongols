@@ -1,5 +1,6 @@
 #include <sys/epoll.h>
 #include <unistd.h>
+#include <iostream>
 
 
 #include "epoll.hpp"
@@ -20,7 +21,6 @@ namespace mongols {
     epoll::~epoll() {
         if (this->evs != 0) {
             for (int i = 0; i < this->real_ev_size; ++i) {
-                this->del(this->evs[i].data.fd);
                 close(this->evs[i].data.fd);
             }
             free(this->evs);
