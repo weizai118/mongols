@@ -22,7 +22,7 @@
 
 
 namespace mongols {
-
+    
     bool tcp_server::done = false;
 
     void tcp_server::signal_normal_cb(int sig) {
@@ -107,11 +107,11 @@ namespace mongols {
         std::function<bool(int) > work = [&](int fd) {
             if (fd > 0) {
                 char buffer[this->buffer_size] = {0};
-                ssize_t ret = recv(fd, buffer, this->buffer_size, MSG_DONTWAIT);
+                ssize_t ret = recv(fd, buffer, this->buffer_size, MSG_WAITALL);
                 if (ret >= 0) {
                     std::string input = std::move(std::string(buffer, ret));
                     std::pair < std::string, bool> output = std::move(g(input));
-                    if (send(fd, output.first.c_str(), output.first.size(), MSG_DONTWAIT) < 0 || output.second) {
+                    if (send(fd, output.first.c_str(), output.first.size(), 0) < 0 || output.second) {
                         goto ev_error;
                     }
                 } else {

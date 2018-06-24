@@ -6,6 +6,7 @@
 #include <string>
 #include <utility>
 #include <unordered_map>
+#include <list>
 #include <mutex>
 
 
@@ -35,7 +36,7 @@ namespace mongols {
         std::unordered_map<int,int> clients;
         std::mutex main_mtx;
     private:
-        mongols::thread_pool work_pool,clients_pool;
+        mongols::thread_pool work_pool, clients_pool;
         static bool done;
         static void signal_normal_cb(int sig);
 
