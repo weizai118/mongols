@@ -16,48 +16,44 @@ namespace mongols {
     bool http_request_parser::parse(const std::string& str) {
 
 
-        auto message_begin_cb = [](http_parser * p) {
+        this->settings.on_message_begin = [](http_parser * p) {
             return 0;
         };
-        this->settings.on_message_begin = message_begin_cb;
 
-        auto header_field_cb = [](http_parser *p, const char *buf, size_t len) {
+        this->settings.on_header_field = [](http_parser *p, const char *buf, size_t len) {
             tmp_* THIS = (tmp_*) p->data;
             THIS->pair.first = std::move(std::string(buf, len));
             THIS->parser->req.headers.insert(std::make_pair(THIS->pair.first, ""));
             return 0;
         };
-        this->settings.on_header_field = header_field_cb;
 
 
-        auto header_value_cb = [](http_parser *p, const char *buf, size_t len) {
+        this->settings.on_header_value = [](http_parser *p, const char *buf, size_t len) {
             tmp_* THIS = (tmp_*) p->data;
             THIS->parser->req.headers[THIS->pair.first] = std::move(std::string(buf, len));
             return 0;
         };
-        this->settings.on_header_value = header_value_cb;
 
 
-        auto url_cb = [](http_parser *p, const char *buf, size_t len) {
+
+        this->settings.on_url = [](http_parser *p, const char *buf, size_t len) {
             tmp_* THIS = (tmp_*) p->data;
             THIS->parser->req.uri = std::move(std::string(buf, len));
             return 0;
         };
-        this->settings.on_url = url_cb;
 
-        auto status_cb = [](http_parser*, const char *at, size_t length) {
+
+        this->settings.on_status = [](http_parser*, const char *at, size_t length) {
             return 0;
         };
-        this->settings.on_status = status_cb;
 
-        auto body_cb = [](http_parser *p, const char *buf, size_t len) {
+        this->settings.on_body = [](http_parser *p, const char *buf, size_t len) {
             tmp_* THIS = (tmp_*) p->data;
             THIS->parser->body = std::move(std::string(buf, len));
             return 0;
         };
-        this->settings.on_body = body_cb;
 
-        auto headers_complete_cb = [](http_parser * p) {
+        this->settings.on_headers_complete = [](http_parser * p) {
             tmp_* THIS = (tmp_*) p->data;
             THIS->parser->req.method = std::move(http_method_str((enum http_method)p->method));
             struct http_parser_url u;
@@ -74,22 +70,18 @@ namespace mongols {
             THIS->parser->req.uri = std::move(path);
             return 0;
         };
-        this->settings.on_headers_complete = headers_complete_cb;
 
-        auto message_complete_cb = [](http_parser * p) {
+        this->settings.on_message_complete = [](http_parser * p) {
             return 0;
         };
-        this->settings.on_message_complete = message_complete_cb;
 
-        auto chuck_header_cb = [](http_parser * p) {
+        this->settings.on_chunk_header = [](http_parser * p) {
             return 0;
         };
-        this->settings.on_chunk_header = chuck_header_cb;
 
-        auto chunk_complete_cb = [](http_parser * p) {
+        this->settings.on_chunk_complete = [](http_parser * p) {
             return 0;
         };
-        this->settings.on_chunk_complete = chunk_complete_cb;
 
 
 
@@ -139,7 +131,7 @@ namespace mongols {
                     mongols::helloworld default_instance;
                     default_instance.handler(req, res);
 
-                    res_filter(req,res);
+                    res_filter(req, res);
                 }
 
             } else {
