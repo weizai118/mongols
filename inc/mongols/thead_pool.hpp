@@ -76,6 +76,10 @@ namespace mongols {
             return this->th.size();
         }
 
+        bool empty()const {
+            return this->th.empty();
+        }
+
     };
 }
 

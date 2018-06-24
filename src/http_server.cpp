@@ -119,7 +119,7 @@ namespace mongols {
     void http_server::run(const std::function<bool(const mongols::request&)>& req_filter
             , const std::function<void(const mongols::request& req, mongols::response&)>& res_filter) {
 
-        std::function < std::pair < std::string, bool>(const std::string&) > g = [&](const std::string & input) {
+        std::function < std::pair < std::string, bool>(const std::string&,bool&) > g = [&](const std::string & input,bool &) {
 
             mongols::request req;
             mongols::response res;
