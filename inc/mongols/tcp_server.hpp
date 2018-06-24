@@ -5,6 +5,8 @@
 #include <netinet/in.h>   
 #include <string>
 #include <utility>
+#include <unordered_map>
+#include <mutex>
 
 
 #include "thead_pool.hpp"
@@ -30,8 +32,10 @@ namespace mongols {
         int port, listenfd, timeout;
         struct sockaddr_in serveraddr;
         size_t buffer_size;
+        std::unordered_map<int,int> clients;
+        std::mutex main_mtx;
     private:
-        mongols::thread_pool th_pool;
+        mongols::thread_pool work_pool,clients_pool;
         static bool done;
         static void signal_normal_cb(int sig);
 

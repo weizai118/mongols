@@ -14,7 +14,7 @@
 #include <iostream>
 #include <thread>
 #include <vector>
-#include <atomic>
+#include <mutex>
 
 
 #include "tcp_server.hpp"
@@ -44,7 +44,8 @@ namespace mongols {
             , int max_event_size) :
     epoll(max_event_size, -1)
     , host(host), port(port), listenfd(0), timeout(timeout), serveraddr()
-    , buffer_size(buffer_size), th_pool(thread_size) {
+    , buffer_size(buffer_size), clients(), main_mtx()
+    , work_pool(thread_size), clients_pool(std::thread::hardware_concurrency()) {
 
     }
 
@@ -88,7 +89,22 @@ namespace mongols {
 
         listen(this->listenfd, 10);
 
-        std::function<bool(int) > w = [&](int fd) {
+
+        std::function<bool(int, bool) > client_work = [&](int fd, bool b) {
+            if (fd > 0) {
+                if (b) {
+                    std::lock_guard<std::mutex> lk(this->main_mtx);
+                    this->clients.insert(std::make_pair(fd, fd));
+                } else if (this->clients.find(fd) != clients.end()) {
+                    std::lock_guard<std::mutex> lk(this->main_mtx);
+                    this->clients.erase(fd);
+                }
+            }
+            return fd > 0 ? false : true;
+        };
+
+
+        std::function<bool(int) > work = [&](int fd) {
             if (fd > 0) {
                 char buffer[this->buffer_size] = {0};
                 ssize_t ret = recv(fd, buffer, this->buffer_size, MSG_DONTWAIT);
@@ -101,13 +117,14 @@ namespace mongols {
                 } else {
 ev_error:
                     close(fd);
+                    this->clients_pool.submit(std::bind(client_work, fd, false));
                 }
             }
             return fd > 0 ? false : true;
         };
 
 
-        std::function<void(struct epoll_event*) > f = [&](struct epoll_event * event) {
+        std::function<void(struct epoll_event*) > main_loop = [&](struct epoll_event * event) {
             if ((event->events & EPOLLERR) ||
                     (event->events & EPOLLHUP) ||
                     (!(event->events & EPOLLIN))) {
@@ -123,7 +140,9 @@ ev_error:
                         setnonblocking(connfd);
                         this->epoll.add(connfd, EPOLLIN | EPOLLRDHUP | EPOLLET);
 
-                        if (this->th_pool.size() > 0) {
+                        this->clients_pool.submit(std::bind(client_work, connfd, true));
+
+                        if (this->work_pool.size() > 0) {
                             std::this_thread::yield();
                         }
                     } else {
@@ -131,11 +150,11 @@ ev_error:
                     }
                 }
             } else {
-                if (this->th_pool.size() > 0) {
-                    this->th_pool.submit(std::bind(w, int(event->data.fd)));
+                if (this->work_pool.size() > 0) {
+                    this->work_pool.submit(std::bind(work, int(event->data.fd)));
                     std::this_thread::yield();
                 } else {
-                    w(event->data.fd);
+                    work(event->data.fd);
                 }
             }
         };
@@ -147,11 +166,16 @@ ev_error:
         signal(SIGQUIT, tcp_server::signal_normal_cb);
 
         while (!tcp_server::done) {
-            this->epoll.loop(f);
+            this->epoll.loop(main_loop);
         }
 
-        for (size_t i = 0; i<this->th_pool.size(); ++i) {
-            this->th_pool.submit(std::bind(w, -1));
+        for (size_t i = 0; i<this->work_pool.size(); ++i) {
+            this->work_pool.submit(std::bind(work, -1));
+            std::this_thread::yield();
+            usleep(100);
+        }
+        for (size_t i = 0; i<this->clients_pool.size(); ++i) {
+            this->clients_pool.submit(std::bind(client_work, -1, false));
             std::this_thread::yield();
             usleep(100);
         }
