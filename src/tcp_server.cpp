@@ -68,7 +68,7 @@ namespace mongols {
 
 
 
-        bzero(&this->serveraddr, sizeof (this->serveraddr));
+        memset(&this->serveraddr, '\0', sizeof (this->serveraddr));
         this->serveraddr.sin_family = AF_INET;
         inet_aton(this->host.c_str(), &serveraddr.sin_addr);
         this->serveraddr.sin_port = htons(this->port);
@@ -96,11 +96,16 @@ namespace mongols {
             this->epoll.loop(main_fun);
         }
 
+        struct timespec thread_exit_timeout;
+        thread_exit_timeout.tv_sec = 0;
+        thread_exit_timeout.tv_nsec = 200;
         auto thread_exit_fun = std::bind(&tcp_server::work, this, -1, g);
         for (size_t i = 0; i<this->work_pool.size(); ++i) {
             this->work_pool.submit(thread_exit_fun);
             std::this_thread::yield();
-            usleep(100);
+            if (nanosleep(&thread_exit_timeout, 0) < 0) {
+                --i;
+            }
         }
 
     }
