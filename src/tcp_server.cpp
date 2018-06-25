@@ -132,7 +132,6 @@ namespace mongols {
 
     void tcp_server::send_to_all_client(int fd, const std::string& str) {
         if (this->work_pool.empty()) {
-            std::lock_guard<std::mutex> lk(this->main_mtx);
             for (auto& i : this->clients) {
                 if (i.first != fd) {
                     send(i.first, str.c_str(), str.size(), 0);
