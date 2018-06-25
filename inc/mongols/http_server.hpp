@@ -21,8 +21,9 @@ namespace mongols {
         std::string& get_body();
 
     private:
-        struct tmp_{
-            std::pair<std::string,std::string> pair;
+
+        struct tmp_ {
+            std::pair<std::string, std::string> pair;
             http_request_parser* parser;
         };
     private:
@@ -31,8 +32,8 @@ namespace mongols {
         struct http_parser_settings settings;
         mongols::request& req;
         std::string body;
-        
-        
+
+
     };
 
     class http_server {
@@ -42,13 +43,15 @@ namespace mongols {
 
     public:
         void run(const std::function<bool(const mongols::request&)>& req_filter
-                , const std::function<void(const mongols::request& req,mongols::response&)>& res_filter);
+                , const std::function<void(const mongols::request& req, mongols::response&)>& res_filter);
     private:
         bool parse_reqeust(const std::string& str, mongols::request& req, std::string& body);
         std::string create_response(mongols::response& res, bool b);
         std::string get_status_text(int status);
     private:
         mongols::tcp_server server;
+    private:
+        std::string tolower(std::string&);
 
 
     };

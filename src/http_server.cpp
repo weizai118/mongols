@@ -1,6 +1,7 @@
 #include "http_server.hpp"
 
 #include <utility>
+#include <algorithm> 
 
 
 namespace mongols {
@@ -111,6 +112,14 @@ namespace mongols {
 
     };
 
+    class notfound : public mongols::servlet {
+    public:
+
+        void handler(request& req, response& res) {
+        }
+
+    };
+
     http_server::http_server(const std::string& host, int port, int timeout, size_t buffer_size, size_t thread_size, int max_event_size)
     : server(host, port, timeout, buffer_size, thread_size, max_event_size) {
 
@@ -119,11 +128,12 @@ namespace mongols {
     void http_server::run(const std::function<bool(const mongols::request&)>& req_filter
             , const std::function<void(const mongols::request& req, mongols::response&)>& res_filter) {
 
-        std::function < std::pair < std::string, bool>(const std::string&,bool&) > g = [&](const std::string & input,bool &) {
+        std::function < std::pair < std::string, bool>(const std::string&, bool&) > g = [&](const std::string & input, bool &) {
 
             mongols::request req;
             mongols::response res;
             std::string body, output;
+            bool conn = CLOSE_CONNECTION;
             if (this->parse_reqeust(input, req, body)) {
 
                 if (req_filter(req)) {
@@ -132,28 +142,35 @@ namespace mongols {
                     default_instance.handler(req, res);
 
                     res_filter(req, res);
-                }
 
+                    std::unordered_map<std::string, std::string>::iterator tmp;
+                    if ((tmp = req.headers.find("Connection")) != req.headers.end()) {
+                        if (this->tolower(tmp->second) == "keep-alive") {
+                            conn = KEEPALIVE_CONNECTION;
+                        }
+                    }
+                    if (conn == CLOSE_CONNECTION && (tmp = req.headers.find("Upgrade")) != req.headers.end()) {
+                        if (this->tolower(tmp->second) == "websocket") {
+                            conn = KEEPALIVE_CONNECTION;
+                        }
+                    }
+                } else {
+                    goto error_not_found;
+                }
             } else {
                 //default response
-                mongols::helloworld default_instance;
+error_not_found:
+
+                mongols::notfound default_instance;
                 default_instance.handler(req, res);
-                std::cout << "parser http failed." << std::endl;
             }
 
 
 
-            bool b = CLOSE_CONNECTION;
-            if (req.headers.find("Connection") != req.headers.end()) {
-                if (req.headers["Connection"] == "keep-alive") {
-                    b = KEEPALIVE_CONNECTION;
-                }
-            }
-
-            output = std::move(this->create_response(res, b));
+            output = std::move(this->create_response(res, conn));
 
 
-            return std::make_pair(std::move(output), b);
+            return std::make_pair(std::move(output), conn);
         };
 
         this->server.run(g);
@@ -230,6 +247,13 @@ namespace mongols {
             case 505: return "HTTP Version Not Supported";
             default: return ("Not supported status code.");
         }
+    }
+
+    std::string http_server::tolower(std::string& str) {
+        std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) {
+            return std::tolower(c);
+        });
+        return str;
     }
 
 }
