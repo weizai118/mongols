@@ -44,7 +44,7 @@ namespace mongols {
         void setnonblocking(int fd);
         void add_client(int);
         void del_client(int);
-        void send_to_all_client(int, const std::string&);
+        bool send_to_all_client(int, const std::string&);
         bool work(int, const std::function<std::pair<std::string, bool>(const std::string&, bool&) >&);
         void main_loop(struct epoll_event *, const std::function<std::pair<std::string, bool>(const std::string&, bool&) >&);
     };
