@@ -96,15 +96,17 @@ namespace mongols {
             this->epoll.loop(main_fun);
         }
 
-        struct timespec thread_exit_timeout;
-        thread_exit_timeout.tv_sec = 0;
-        thread_exit_timeout.tv_nsec = 200;
-        auto thread_exit_fun = std::bind(&tcp_server::work, this, -1, g);
-        for (size_t i = 0; i<this->work_pool.size(); ++i) {
-            this->work_pool.submit(thread_exit_fun);
-            std::this_thread::yield();
-            if (nanosleep(&thread_exit_timeout, 0) < 0) {
-                --i;
+        if (!this->work_pool.empty()) {
+            struct timespec thread_exit_timeout;
+            thread_exit_timeout.tv_sec = 0;
+            thread_exit_timeout.tv_nsec = 200;
+            auto thread_exit_fun = std::bind(&tcp_server::work, this, -1, g);
+            for (size_t i = 0; i<this->work_pool.size(); ++i) {
+                this->work_pool.submit(thread_exit_fun);
+                std::this_thread::yield();
+                if (nanosleep(&thread_exit_timeout, 0) < 0) {
+                    --i;
+                }
             }
         }
 
@@ -135,24 +137,27 @@ namespace mongols {
         }
     }
 
-    void tcp_server::send_to_all_client(int fd, const std::string& str) {
-        if (this->work_pool.empty()) {
-            for (auto& i : this->clients) {
-                if (i.first != fd) {
-                    send(i.first, str.c_str(), str.size(), 0);
+    bool tcp_server::send_to_all_client(int fd, const std::string& str) {
+        if (fd > 0) {
+            if (this->work_pool.empty()) {
+                for (auto& i : this->clients) {
+                    if (i.first != fd) {
+                        send(i.first, str.c_str(), str.size(), 0);
+                    }
                 }
-            }
 
-        } else {
-            std::lock_guard<std::mutex> lk(this->main_mtx);
-            for (auto& i : this->clients) {
-                if (i.first != fd) {
-                    send(i.first, str.c_str(), str.size(), 0);
+            } else {
+                std::lock_guard<std::mutex> lk(this->main_mtx);
+                for (auto& i : this->clients) {
+                    if (i.first != fd) {
+                        send(i.first, str.c_str(), str.size(), 0);
+                        std::this_thread::yield();
+                    }
                 }
+
             }
-            std::this_thread::yield();
         }
-
+        return fd > 0 ? false : true;
     }
 
     bool tcp_server::work(int fd, const std::function<std::pair<std::string, bool>(const std::string&, bool&) >& g) {
@@ -166,7 +171,8 @@ namespace mongols {
                 if (send(fd, output.first.c_str(), output.first.size(), 0) < 0 || output.second) {
                     goto ev_error;
                 } else if (send_to_all) {
-                    this->send_to_all_client(fd, output.first);
+                    this->work_pool.submit(std::bind(&tcp_server::send_to_all_client, this, fd, std::cref(output.first)));
+                    std::this_thread::yield();
                 }
             } else {
 ev_error:
