@@ -128,8 +128,8 @@ namespace mongols {
     void http_server::run(const std::function<bool(const mongols::request&)>& req_filter
             , const std::function<void(const mongols::request& req, mongols::response&)>& res_filter) {
 
-        std::function < std::pair < std::string, bool>(const std::string&, bool&) > g = [&](const std::string & input, bool &) {
-
+        std::function < std::pair < std::string, bool>(const std::string&, bool&) > g = [&](const std::string & input, bool & send_to_other) {
+            send_to_other = false;
             mongols::request req;
             mongols::response res;
             std::string body, output;
@@ -137,7 +137,7 @@ namespace mongols {
             if (this->parse_reqeust(input, req, body)) {
 
                 if (req_filter(req)) {
-                    //example
+
                     mongols::helloworld default_instance;
                     default_instance.handler(req, res);
 
@@ -149,16 +149,10 @@ namespace mongols {
                             conn = KEEPALIVE_CONNECTION;
                         }
                     }
-                    if (conn == CLOSE_CONNECTION && (tmp = req.headers.find("Upgrade")) != req.headers.end()) {
-                        if (this->tolower(tmp->second) == "websocket") {
-                            conn = KEEPALIVE_CONNECTION;
-                        }
-                    }
                 } else {
                     goto error_not_found;
                 }
             } else {
-                //default response
 error_not_found:
 
                 mongols::notfound default_instance;
