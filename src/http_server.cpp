@@ -1,7 +1,8 @@
 #include "http_server.hpp"
 
 #include <utility>
-#include <algorithm> 
+#include <algorithm>
+#include <functional>
 
 
 namespace mongols {
@@ -126,46 +127,13 @@ namespace mongols {
     }
 
     void http_server::run(const std::function<bool(const mongols::request&)>& req_filter
-            , const std::function<void(const mongols::request& req, mongols::response&)>& res_filter) {
+            , const std::function<void(const mongols::request&, mongols::response&)>& res_filter) {
 
-        std::function < std::pair < std::string, bool>(const std::string&, bool&) > g = [&](const std::string & input, bool & send_to_other) {
-            send_to_other = false;
-            mongols::request req;
-            mongols::response res;
-            std::string body, output;
-            bool conn = CLOSE_CONNECTION;
-            if (this->parse_reqeust(input, req, body)) {
-
-                if (req_filter(req)) {
-
-                    mongols::helloworld default_instance;
-                    default_instance.handler(req, res);
-
-                    res_filter(req, res);
-
-                    std::unordered_map<std::string, std::string>::iterator tmp;
-                    if ((tmp = req.headers.find("Connection")) != req.headers.end()) {
-                        if (this->tolower(tmp->second) == "keep-alive") {
-                            conn = KEEPALIVE_CONNECTION;
-                        }
-                    }
-                } else {
-                    goto error_not_found;
-                }
-            } else {
-error_not_found:
-
-                mongols::notfound default_instance;
-                default_instance.handler(req, res);
-            }
-
-
-
-            output = std::move(this->create_response(res, conn));
-
-
-            return std::make_pair(std::move(output), conn);
-        };
+        auto g = std::bind(&http_server::work, this
+                , std::cref(req_filter)
+                , std::cref(res_filter)
+                , std::placeholders::_1
+                , std::placeholders::_2);
 
         this->server.run(g);
     }
@@ -248,6 +216,49 @@ error_not_found:
             return std::tolower(c);
         });
         return str;
+    }
+
+    std::pair < std::string, bool> http_server::work(
+            const std::function<bool(const mongols::request&)>& req_filter
+            , const std::function<void(const mongols::request&, mongols::response&)>& res_filter
+            , const std::string& input
+            , bool& send_to_other) {
+        send_to_other = false;
+        mongols::request req;
+        mongols::response res;
+        std::string body, output;
+        bool conn = CLOSE_CONNECTION;
+        if (this->parse_reqeust(input, req, body)) {
+
+            if (req_filter(req)) {
+
+                mongols::helloworld default_instance;
+                default_instance.handler(req, res);
+
+                res_filter(req, res);
+
+                std::unordered_map<std::string, std::string>::iterator tmp;
+                if ((tmp = req.headers.find("Connection")) != req.headers.end()) {
+                    if (this->tolower(tmp->second) == "keep-alive") {
+                        conn = KEEPALIVE_CONNECTION;
+                    }
+                }
+            } else {
+                goto error_not_found;
+            }
+        } else {
+error_not_found:
+
+            mongols::notfound default_instance;
+            default_instance.handler(req, res);
+        }
+
+
+
+        output = std::move(this->create_response(res, conn));
+
+
+        return std::make_pair(std::move(output), conn);
     }
 
 }
