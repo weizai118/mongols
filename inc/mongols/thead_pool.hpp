@@ -69,7 +69,9 @@ namespace mongols {
 
         template<typename F>
         void submit(F f) {
-            this->q.push(f);
+            if (!this->th.empty()) {
+                this->q.push(f);
+            }
         }
 
         size_t size()const {
