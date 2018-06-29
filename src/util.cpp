@@ -8,6 +8,7 @@
 #include <ctime>
 
 #include <string>
+#include <cstring>
 #include <fstream>
 
 #include <openssl/md5.h>
@@ -367,6 +368,69 @@ namespace mongols {
         }
     }
 
+    std::string base64_encode(const std::string& str, bool newline) {
+        const char* buffer = str.c_str();
+        size_t length = str.size();
+        BIO *bmem = NULL;
+        BIO *b64 = NULL;
+        BUF_MEM *bptr;
 
+        b64 = BIO_new(BIO_f_base64());
+        if (!newline) {
+            BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);
+        }
+        bmem = BIO_new(BIO_s_mem());
+        b64 = BIO_push(b64, bmem);
+        BIO_write(b64, buffer, length);
+        BIO_flush(b64);
+        BIO_get_mem_ptr(b64, &bptr);
+        BIO_set_close(b64, BIO_NOCLOSE);
 
+        char buff[bptr->length + 1];
+        memcpy(buff, bptr->data, bptr->length);
+        buff[bptr->length] = 0;
+        BIO_free_all(b64);
+
+        return buff;
+    }
+
+    std::string base64_decode(const std::string& str, bool newline) {
+        const char* input = str.c_str();
+        size_t length = str.size();
+        BIO *b64 = NULL;
+        BIO *bmem = NULL;
+        char buffer[length];
+        memset(buffer, 0, length);
+        b64 = BIO_new(BIO_f_base64());
+        if (!newline) {
+            BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);
+        }
+        bmem = BIO_new_mem_buf(input, length);
+        bmem = BIO_push(b64, bmem);
+        BIO_read(bmem, buffer, length);
+        BIO_free_all(bmem);
+
+        return buffer;
+    }
+
+    std::string sha1(const std::string& str) {
+        SHA_CTX ctx;
+        SHA1_Init(&ctx);
+        SHA1_Update(&ctx, str.c_str(), str.size());
+        unsigned char md[SHA_DIGEST_LENGTH];
+        SHA1_Final(md, &ctx);
+        return std::string((char*) md, SHA_DIGEST_LENGTH);
+    }
+
+    std::string bin2hex(const std::string& input) {
+        std::string res;
+        const char hex[] = "0123456789ABCDEF";
+        for (auto sc : input) {
+            unsigned char c = static_cast<unsigned char> (sc);
+            res += hex[c >> 4];
+            res += hex[c & 0xf];
+        }
+
+        return res;
+    }
 }
