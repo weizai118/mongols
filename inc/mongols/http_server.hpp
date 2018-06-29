@@ -1,7 +1,7 @@
 #ifndef HTTP_SERVER_HPP
 #define HTTP_SERVER_HPP
 
-#include <netdb.h>
+
 
 #include "tcp_server.hpp"
 #include "servlet.hpp"
