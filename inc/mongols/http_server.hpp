@@ -47,12 +47,13 @@ namespace mongols {
     public:
         void run(const std::function<bool(const mongols::request&)>& req_filter
                 , const std::function<void(const mongols::request&, mongols::response&)>& res_filter);
-    protected:
-        virtual std::pair < std::string, bool> work(
+    private:
+        std::pair < std::string, bool> work(
                 const std::function<bool(const mongols::request&)>& req_filter
                 , const std::function<void(const mongols::request& req, mongols::response&)>& res_filter
                 , const std::string&
-                , bool&);
+                , bool&
+                , std::pair<size_t, size_t>&);
     private:
         bool parse_reqeust(const std::string& str, mongols::request& req, std::string& body);
         std::string create_response(mongols::response& res, bool b);

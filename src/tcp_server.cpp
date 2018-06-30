@@ -50,7 +50,8 @@ namespace mongols {
 
     }
 
-    void tcp_server::run(const std::function<std::pair<std::string, bool>(const std::string&, bool&) >& g) {
+    void tcp_server::run(const std::function<std::pair<std::string, bool>(const std::string&, bool&, std::pair<size_t, size_t>&) >& g
+            , const std::function<bool(const std::pair<size_t, size_t>&)>& h) {
 
         this->listenfd = socket(AF_INET, SOCK_STREAM, 0);
 
@@ -90,7 +91,7 @@ namespace mongols {
         signal(SIGINT, tcp_server::signal_normal_cb);
         signal(SIGQUIT, tcp_server::signal_normal_cb);
 
-        auto main_fun = std::bind(&tcp_server::main_loop, this, std::placeholders::_1, g);
+        auto main_fun = std::bind(&tcp_server::main_loop, this, std::placeholders::_1, std::cref(g), std::cref(h));
 
         while (!tcp_server::done) {
             this->epoll.loop(main_fun);
@@ -100,7 +101,7 @@ namespace mongols {
             struct timespec thread_exit_timeout;
             thread_exit_timeout.tv_sec = 0;
             thread_exit_timeout.tv_nsec = 200;
-            auto thread_exit_fun = std::bind(&tcp_server::work, this, -1, g);
+            auto thread_exit_fun = std::bind(&tcp_server::work, this, -1, std::cref(g),std::cref(h));
             for (size_t i = 0; i<this->work_pool.size(); ++i) {
                 this->work_pool.submit(thread_exit_fun);
                 std::this_thread::yield();
@@ -137,11 +138,11 @@ namespace mongols {
         }
     }
 
-    bool tcp_server::send_to_all_client(int fd, const std::string& str) {
+    bool tcp_server::send_to_all_client(int fd, const std::string& str, const std::function<bool(const std::pair<size_t, size_t>&)>& h) {
         if (fd > 0) {
             if (this->work_pool.empty()) {
                 for (auto& i : this->clients) {
-                    if (i.first != fd) {
+                    if (i.first != fd && h(i.second)) {
                         send(i.first, str.c_str(), str.size(), 0);
                     }
                 }
@@ -149,7 +150,7 @@ namespace mongols {
             } else {
                 std::lock_guard<std::mutex> lk(this->main_mtx);
                 for (auto& i : this->clients) {
-                    if (i.first != fd) {
+                    if (i.first != fd && h(i.second)) {
                         send(i.first, str.c_str(), str.size(), 0);
                         std::this_thread::yield();
                     }
@@ -160,18 +161,34 @@ namespace mongols {
         return fd > 0 ? false : true;
     }
 
-    bool tcp_server::work(int fd, const std::function<std::pair<std::string, bool>(const std::string&, bool&) >& g) {
+    bool tcp_server::work(int fd, const std::function<std::pair<std::string, bool>(const std::string&, bool&, std::pair<size_t, size_t>&) >& g
+            , const std::function<bool(const std::pair<size_t, size_t>&)>& h) {
         if (fd > 0) {
             char buffer[this->buffer_size] = {0};
             ssize_t ret = recv(fd, buffer, this->buffer_size, MSG_WAITALL);
             if (ret >= 0) {
                 std::string input = std::move(std::string(buffer, ret));
-                bool send_to_all = false;
-                std::pair < std::string, bool> output = std::move(g(input, send_to_all));
-                if (send(fd, output.first.c_str(), output.first.size(), 0) < 0 || output.second) {
-                    goto ev_error;
-                } else if (send_to_all) {
-                    this->work_pool.submit(std::bind(&tcp_server::send_to_all_client, this, fd, std::cref(output.first)));
+                if (this->work_pool.empty()) {
+                    bool send_to_all = false;
+                    std::pair<size_t, size_t>& g_u_id = this->clients[fd];
+                    std::pair < std::string, bool> output = std::move(g(input, send_to_all, g_u_id));
+                    if (send(fd, output.first.c_str(), output.first.size(), 0) < 0 || output.second) {
+                        goto ev_error;
+                    } else if (send_to_all) {
+                        this->work_pool.submit(std::bind(&tcp_server::send_to_all_client, this, fd, std::cref(output.first), std::cref(h)));
+                        std::this_thread::yield();
+                    }
+                } else {
+                    std::lock_guard<std::mutex> lk(this->main_mtx);
+                    bool send_to_all = false;
+                    std::pair<size_t, size_t>& g_u_id = this->clients[fd];
+                    std::pair < std::string, bool> output = std::move(g(input, send_to_all, g_u_id));
+                    if (send(fd, output.first.c_str(), output.first.size(), 0) < 0 || output.second) {
+                        goto ev_error;
+                    } else if (send_to_all) {
+                        this->work_pool.submit(std::bind(&tcp_server::send_to_all_client, this, fd, (output.first), std::cref(h)));
+                        std::this_thread::yield();
+                    }
                     std::this_thread::yield();
                 }
             } else {
@@ -185,7 +202,8 @@ ev_error:
     }
 
     void tcp_server::main_loop(struct epoll_event * event
-            , const std::function<std::pair<std::string, bool>(const std::string&, bool&)>& g) {
+            , const std::function<std::pair<std::string, bool>(const std::string&, bool&, std::pair<size_t, size_t>&)>& g
+            , const std::function<bool(const std::pair<size_t, size_t>&)>& h) {
         if ((event->events & EPOLLERR) ||
                 (event->events & EPOLLHUP) ||
                 (!(event->events & EPOLLIN))) {
@@ -208,9 +226,9 @@ ev_error:
             }
         } else {
             if (this->work_pool.empty()) {
-                work(event->data.fd, g);
+                work(event->data.fd, g, h);
             } else {
-                this->work_pool.submit(std::bind(&tcp_server::work, this, int(event->data.fd), g));
+                this->work_pool.submit(std::bind(&tcp_server::work, this, int(event->data.fd), g, h));
                 std::this_thread::yield();
             }
         }

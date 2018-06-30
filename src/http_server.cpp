@@ -133,9 +133,13 @@ namespace mongols {
                 , std::cref(req_filter)
                 , std::cref(res_filter)
                 , std::placeholders::_1
-                , std::placeholders::_2);
+                , std::placeholders::_2
+                , std::placeholders::_3);
+        auto h = [](const std::pair<size_t, size_t>&) {
+            return true;
+        };
 
-        this->server.run(g);
+        this->server.run(g, h);
     }
 
     bool http_server::parse_reqeust(const std::string& str, mongols::request& req, std::string& body) {
@@ -222,7 +226,8 @@ namespace mongols {
             const std::function<bool(const mongols::request&)>& req_filter
             , const std::function<void(const mongols::request&, mongols::response&)>& res_filter
             , const std::string& input
-            , bool& send_to_other) {
+            , bool& send_to_other
+            , std::pair<size_t, size_t>&) {
         send_to_other = false;
         mongols::request req;
         mongols::response res;
