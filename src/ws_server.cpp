@@ -44,7 +44,7 @@ namespace mongols {
             goto ws_done;
         } else {
 
-            const char* close_msg = "close.", *empty_msg = "", *error_msg = "error message";
+            const char* close_msg = "connection closed.", *empty_msg = "", *error_msg = "error message.";
 
             const size_t buffer_size = this->server.get_buffer_size();
             char in_buffer[buffer_size];
@@ -59,6 +59,9 @@ namespace mongols {
             memset(in_buffer, 0, buffer_size);
             if (wsft == TEXT_FRAME || wsft == BINARY_FRAME) {
                 out = std::move(f(out, keepalive, send_to_other));
+                if (out == "close" || out == "quit") {
+                    goto ws_exit;
+                }
                 len = ws.makeFrame((WebSocketFrameType) wsft, out.c_str(), out.size(), in_buffer, buffer_size);
                 response.assign(in_buffer, len);
                 goto ws_done;
@@ -75,6 +78,7 @@ namespace mongols {
                     || wsft == INCOMPLETE_TEXT_FRAME
                     || wsft == INCOMPLETE_BINARY_FRAME
                     || wsft == INCOMPLETE_FRAME) {
+ws_exit:
                 len = ws.makeFrame(CLOSING_FRAME, close_msg, strlen(close_msg), in_buffer, buffer_size);
                 response.assign(in_buffer, len);
                 keepalive = CLOSE_CONNECTION;
