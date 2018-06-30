@@ -57,7 +57,7 @@ class WebSocket
 	WebSocketFrameType parseHandshake(const char* input_frame, size_t input_len);
 	string answerHandshake();
 
-	int makeFrame(WebSocketFrameType frame_type, const char* msg, size_t msg_len,  char* buffer, size_t buffer_len);
+	size_t makeFrame(WebSocketFrameType frame_type, const char* msg, size_t msg_len,  char* buffer, size_t buffer_len);
 	WebSocketFrameType getFrame(char* in_buffer, size_t in_length, std::string&);
 
 	string trim(string& str);

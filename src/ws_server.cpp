@@ -15,11 +15,12 @@ namespace mongols {
 
     }
 
-    void ws_server::run() {
-        this->server.run(std::bind(&ws_server::work, this, std::placeholders::_1, std::placeholders::_2));
+    void ws_server::run(const std::function<std::string(const std::string&, bool&, bool&)>& f) {
+        this->server.run(std::bind(&ws_server::work, this, std::placeholders::_1, std::placeholders::_2, std::cref(f)));
     }
 
-    std::pair<std::string, bool> ws_server::work(const std::string& input, bool& send_to_other) {
+    std::pair<std::string, bool> ws_server::work(const std::string& input, bool& send_to_other
+            , const std::function<std::string(const std::string&, bool&, bool&)>& f) {
         std::string response;
         bool b = KEEPALIVE_CONNECTION;
         send_to_other = false;
@@ -49,8 +50,9 @@ namespace mongols {
             auto wsft = ws.getFrame(in_buffer, strlen(in_buffer), out);
 
             memset(in_buffer, 0, buffer_size);
-            if (wsft == TEXT_FRAME||wsft==BINARY_FRAME) {
-                len = ws.makeFrame((WebSocketFrameType)wsft, out.c_str(), out.size(), in_buffer, buffer_size);
+            if (wsft == TEXT_FRAME || wsft == BINARY_FRAME) {
+                out = std::move(f(out, b, send_to_other));
+                len = ws.makeFrame((WebSocketFrameType) wsft, out.c_str(), out.size(), in_buffer, buffer_size);
                 response.assign(in_buffer, len);
                 send_to_other = true;
                 goto ws_done;
@@ -62,7 +64,8 @@ namespace mongols {
                 len = ws.makeFrame(PONG_FRAME, empty_msg, strlen(empty_msg), in_buffer, buffer_size);
                 response.assign(in_buffer, len);
                 goto ws_done;
-            } else if (wsft == CLOSING_FRAME || wsft == ERROR_FRAME
+            } else if (wsft == CLOSING_FRAME
+                    || wsft == ERROR_FRAME
                     || wsft == INCOMPLETE_TEXT_FRAME
                     || wsft == INCOMPLETE_BINARY_FRAME
                     || wsft == INCOMPLETE_FRAME) {
@@ -73,6 +76,7 @@ namespace mongols {
             } else {
                 len = ws.makeFrame(ERROR_FRAME, error_msg, strlen(error_msg), in_buffer, buffer_size);
                 response.assign(in_buffer, len);
+                b = CLOSE_CONNECTION;
                 goto ws_done;
             }
         }

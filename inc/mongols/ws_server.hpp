@@ -7,7 +7,6 @@
 
 namespace mongols {
 
-
     class ws_server {
     public:
         ws_server() = delete;
@@ -16,9 +15,10 @@ namespace mongols {
                 , size_t buffer_size = 1024, size_t thread_size = 0, int max_event_size = 64);
 
     public:
-        void run();
+        void run(const std::function<std::string(const std::string&, bool&, bool&)>&);
     private:
-        virtual std::pair < std::string, bool> work(const std::string&,bool&);
+        virtual std::pair < std::string, bool> work(const std::string&, bool&
+                , const std::function<std::string(const std::string&, bool&, bool&)>&);
 
     private:
         mongols::tcp_server server;
