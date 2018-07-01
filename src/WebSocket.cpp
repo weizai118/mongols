@@ -79,7 +79,7 @@ std::vector<std::string> WebSocket::explode(
         length = (end == std::string::npos) ? std::string::npos : end - start;
 
         if (theIncludeEmptyStrings || ((length > 0) && (start < theString.size()))) {
-            theStringVector.push_back(theString.substr(start, length));
+            theStringVector.push_back(std::move(theString.substr(start, length)));
         }
 
 
