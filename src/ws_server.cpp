@@ -15,7 +15,7 @@ namespace mongols {
 
     }
 
-    void ws_server::run(const std::function<std::string(const std::string&, bool&, bool&)>& f
+    void ws_server::run(const std::function<std::string(const std::string&, bool&, bool&, std::pair<size_t, size_t>&)>& f
             , const std::function<bool(const std::pair<size_t, size_t>&)>& h) {
         this->server.run(std::bind(&ws_server::work, this
                 , std::cref(f)
@@ -25,7 +25,7 @@ namespace mongols {
                 , std::cref(h));
     }
 
-    std::pair<std::string, bool> ws_server::work(const std::function<std::string(const std::string&, bool&, bool&)>& f
+    std::pair<std::string, bool> ws_server::work(const std::function<std::string(const std::string&, bool&, bool&, std::pair<size_t, size_t>&)>& f
             , const std::string& input
             , bool& send_to_other
             , std::pair<size_t, size_t>& g_u_id) {
@@ -58,9 +58,13 @@ namespace mongols {
 
             memset(in_buffer, 0, buffer_size);
             if (wsft == TEXT_FRAME || wsft == BINARY_FRAME) {
-                out = std::move(f(out, keepalive, send_to_other));
+                out = std::move(f(out, keepalive, send_to_other, g_u_id));
                 if (out == "close" || out == "quit") {
                     goto ws_exit;
+                }
+                if (out.empty()) {
+                    out=std::move("empty message.");
+                    send_to_other = false;
                 }
                 len = ws.makeFrame((WebSocketFrameType) wsft, out.c_str(), out.size(), in_buffer, buffer_size);
                 response.assign(in_buffer, len);
