@@ -1,10 +1,10 @@
-
-
 #include "ws_server.hpp"
 #include "lib/libwshandshake.hpp"
 #include "lib/WebSocket.h"
+#include "lib/json11.hpp"
 
 #include <algorithm>
+#include <vector>
 
 
 namespace mongols {
@@ -15,20 +15,127 @@ namespace mongols {
 
     }
 
-    void ws_server::run(const std::function<std::string(const std::string&, bool&, bool&, std::pair<size_t, size_t>&)>& f
-            , const std::function<bool(const std::pair<size_t, size_t>&)>& h) {
+    void ws_server::run(const std::function<std::string(
+            const std::string&
+            , bool&
+            , bool&
+            , std::pair<size_t, size_t>&
+            , std::function<bool(const std::pair<size_t, size_t>&)>&) >& f) {
         this->server.run(std::bind(&ws_server::work, this
                 , std::cref(f)
                 , std::placeholders::_1
                 , std::placeholders::_2
-                , std::placeholders::_3)
-                , std::cref(h));
+                , std::placeholders::_3
+                , std::placeholders::_4));
     }
 
-    std::pair<std::string, bool> ws_server::work(const std::function<std::string(const std::string&, bool&, bool&, std::pair<size_t, size_t>&)>& f
+    void ws_server::run() {
+        const std::function < std::string(
+                const std::string&
+                , bool&
+                , bool&
+                , std::pair<size_t, size_t>&
+                , std::function<bool(const std::pair<size_t, size_t>&)>&) > f = std::bind(&ws_server::ws_json_parse, this
+                , std::placeholders::_1
+                , std::placeholders::_2
+                , std::placeholders::_3
+                , std::placeholders::_4
+                , std::placeholders::_5
+                );
+        this->server.run(std::bind(&ws_server::work, this
+                , f
+                , std::placeholders::_1
+                , std::placeholders::_2
+                , std::placeholders::_3
+                , std::placeholders::_4
+                ));
+    }
+
+    std::string ws_server::ws_json_parse(const std::string& input
+            , bool& keepalive
+            , bool& send_to_other
+            , std::pair<size_t, size_t>& g_u_id
+            , std::function<bool(const std::pair<size_t, size_t>&)>& send_to_other_filter) {
+        if (input == "quit" || input == "exit" || input == "close")return input;
+        std::string err;
+        json11::Json root = json11::Json::parse(input, err);
+        if (err.empty()) {
+            if (!root["uid"].is_number()
+                    || !root["gid"].is_number()
+                    || !root["name"].is_string()
+                    || !root["message"].is_string()
+                    || !root["gfilter"].is_array()
+                    || !root["ufilter"].is_array()) {
+                goto json_err;
+            } else {
+                if (g_u_id.first == 0) {
+                    g_u_id.first = root["gid"].int_value();
+                }
+                if (g_u_id.second == 0) {
+                    g_u_id.second = root["uid"].int_value();
+                }
+                keepalive = KEEPALIVE_CONNECTION;
+                send_to_other = true;
+                std::vector<size_t> gfilter, ufilter;
+                for (auto &i : root["gfilter"].array_items()) {
+                    if (i.is_number()) {
+                        gfilter.push_back(i.int_value());
+                    }
+                }
+                for (auto &i : root["ufilter"].array_items()) {
+                    if (i.is_number()) {
+                        ufilter.push_back(i.int_value());
+                    }
+                }
+                send_to_other_filter = [ = ](const std::pair<size_t, size_t>& cur_g_u_id){
+                    bool res = false;
+                    if (gfilter.empty()) {
+                        if (ufilter.empty()) {
+                            res = true;
+                        } else {
+                            res = std::find(ufilter.begin(), ufilter.end(), cur_g_u_id.second) != ufilter.end();
+                        }
+                    } else {
+                        if (ufilter.empty()) {
+                            res = std::find(gfilter.begin(), gfilter.end(), cur_g_u_id.first) != gfilter.end();
+                        } else {
+                            res = std::find(gfilter.begin(), gfilter.end(), cur_g_u_id.first) != gfilter.end()
+                                    && std::find(ufilter.begin(), ufilter.end(), cur_g_u_id.second) != ufilter.end();
+                        }
+                    }
+                    return res;
+
+                };
+
+                json11::Json tmp = json11::Json::object({
+                    {"message", root["message"].string_value()}
+                    ,
+                    {"uid", root["uid"].int_value()}
+                    ,
+                    {"gid", root["gid"].int_value()}
+                    ,
+                    {"name", root["name"].string_value()}
+                });
+                return tmp.dump();
+            }
+        } else {
+json_err:
+
+            return "error json message";
+        }
+
+    }
+
+    std::pair<std::string, bool> ws_server::work(const std::function<std::string(
+            const std::string&
+            , bool&
+            , bool&
+            , std::pair<size_t, size_t>&
+            , std::function<bool(const std::pair<size_t, size_t>&)>&)>& f
             , const std::string& input
             , bool& send_to_other
-            , std::pair<size_t, size_t>& g_u_id) {
+            , std::pair<size_t, size_t>& g_u_id
+            , std::function<bool(const std::pair<size_t, size_t>&)>& send_to_other_filter) {
         std::string response;
         bool keepalive = KEEPALIVE_CONNECTION;
         send_to_other = false;
@@ -44,7 +151,8 @@ namespace mongols {
             goto ws_done;
         } else {
 
-            const char* close_msg = "connection closed.", *empty_msg = "", *error_msg = "error message.";
+            const char* close_msg = "connection closed.", *empty_msg = "", *error_msg = "error message."
+                    , *binary_msg = "not accept binary message.";
 
             const size_t buffer_size = this->server.get_buffer_size();
             char in_buffer[buffer_size];
@@ -57,13 +165,13 @@ namespace mongols {
             auto wsft = ws.getFrame(in_buffer, strlen(in_buffer), out);
 
             memset(in_buffer, 0, buffer_size);
-            if (wsft == TEXT_FRAME || wsft == BINARY_FRAME) {
-                out = std::move(f(out, keepalive, send_to_other, g_u_id));
-                if (out == "close" || out == "quit") {
+            if (wsft == TEXT_FRAME) {
+                out = std::move(f(out, keepalive, send_to_other, g_u_id, send_to_other_filter));
+                if (out == "close" || out == "quit" || out == "exit") {
                     goto ws_exit;
                 }
                 if (out.empty()) {
-                    out=std::move("empty message.");
+                    out = std::move("empty message.");
                     send_to_other = false;
                 }
                 len = ws.makeFrame((WebSocketFrameType) wsft, out.c_str(), out.size(), in_buffer, buffer_size);
@@ -76,6 +184,11 @@ namespace mongols {
             } else if (wsft == PING_FRAME) {
                 len = ws.makeFrame(PONG_FRAME, empty_msg, strlen(empty_msg), in_buffer, buffer_size);
                 response.assign(in_buffer, len);
+                goto ws_done;
+            } else if (wsft == BINARY_FRAME) {
+                len = ws.makeFrame(CLOSING_FRAME, binary_msg, strlen(binary_msg), in_buffer, buffer_size);
+                response.assign(in_buffer, len);
+                keepalive = CLOSE_CONNECTION;
                 goto ws_done;
             } else if (wsft == CLOSING_FRAME
                     || wsft == ERROR_FRAME

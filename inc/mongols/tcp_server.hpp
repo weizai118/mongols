@@ -26,9 +26,12 @@ namespace mongols {
 
 
     public:
-        void run(const std::function<std::pair<std::string, bool>(const std::string&, bool&, std::pair<size_t, size_t>&) >&
-                , const std::function<bool(const std::pair<size_t, size_t>&)>&);
-        size_t get_buffer_size()const{
+        void run(const std::function<std::pair<std::string, bool>(const std::string&
+                , bool&
+                , std::pair<size_t, size_t>&
+                , std::function<bool(const std::pair<size_t, size_t>&)>&) >&);
+
+        size_t get_buffer_size()const {
             return this->buffer_size;
         }
     private:
@@ -49,10 +52,14 @@ namespace mongols {
         void add_client(int);
         void del_client(int);
         bool send_to_all_client(int, const std::string&, const std::function<bool(const std::pair<size_t, size_t>&)>&);
-        bool work(int, const std::function<std::pair<std::string, bool>(const std::string&, bool&, std::pair<size_t, size_t>&) >&
-                , const std::function<bool(const std::pair<size_t, size_t>&)>&);
-        void main_loop(struct epoll_event *, const std::function<std::pair<std::string, bool>(const std::string&, bool&, std::pair<size_t, size_t>&) >&
-                , const std::function<bool(const std::pair<size_t, size_t>&)>&);
+        bool work(int, const std::function<std::pair<std::string, bool>(const std::string&
+                , bool&
+                , std::pair<size_t, size_t>&
+                , std::function<bool(const std::pair<size_t, size_t>&)>&) >&);
+        void main_loop(struct epoll_event *, const std::function<std::pair<std::string, bool>(const std::string&
+                , bool&
+                , std::pair<size_t, size_t>&
+                , std::function<bool(const std::pair<size_t, size_t>&)>&) >&);
     };
 }
 
