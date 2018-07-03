@@ -15,12 +15,7 @@ namespace mongols {
 
     }
 
-    void ws_server::run(const std::function<std::string(
-            const std::string&
-            , bool&
-            , bool&
-            , std::pair<size_t, size_t>&
-            , std::function<bool(const std::pair<size_t, size_t>&)>&) >& f) {
+    void ws_server::run(const handler_function& f) {
         this->server.run(std::bind(&ws_server::work, this
                 , std::cref(f)
                 , std::placeholders::_1
@@ -30,12 +25,7 @@ namespace mongols {
     }
 
     void ws_server::run() {
-        const std::function < std::string(
-                const std::string&
-                , bool&
-                , bool&
-                , std::pair<size_t, size_t>&
-                , std::function<bool(const std::pair<size_t, size_t>&)>&) > f = std::bind(&ws_server::ws_json_parse, this
+        handler_function f = std::bind(&ws_server::ws_json_parse, this
                 , std::placeholders::_1
                 , std::placeholders::_2
                 , std::placeholders::_3
@@ -55,7 +45,7 @@ namespace mongols {
             , bool& keepalive
             , bool& send_to_other
             , std::pair<size_t, size_t>& g_u_id
-            , std::function<bool(const std::pair<size_t, size_t>&)>& send_to_other_filter) {
+            , tcp_server::filter_handler_function& send_to_other_filter) {
         if (input == "quit" || input == "exit" || input == "close")return input;
         std::string err;
         json11::Json root = json11::Json::parse(input, err);
@@ -126,16 +116,11 @@ json_err:
 
     }
 
-    std::pair<std::string, bool> ws_server::work(const std::function<std::string(
-            const std::string&
-            , bool&
-            , bool&
-            , std::pair<size_t, size_t>&
-            , std::function<bool(const std::pair<size_t, size_t>&)>&)>& f
+    std::pair<std::string, bool> ws_server::work(const handler_function& f
             , const std::string& input
             , bool& send_to_other
             , std::pair<size_t, size_t>& g_u_id
-            , std::function<bool(const std::pair<size_t, size_t>&)>& send_to_other_filter) {
+            , tcp_server::filter_handler_function& send_to_other_filter) {
         std::string response;
         bool keepalive = KEEPALIVE_CONNECTION;
         send_to_other = false;

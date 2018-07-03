@@ -50,10 +50,7 @@ namespace mongols {
 
     }
 
-    void tcp_server::run(const std::function<std::pair<std::string, bool>(const std::string&
-            , bool&
-            , std::pair<size_t, size_t>&
-            , std::function<bool(const std::pair<size_t, size_t>&)>&) >& g) {
+    void tcp_server::run(const handler_function& g) {
 
         this->listenfd = socket(AF_INET, SOCK_STREAM, 0);
 
@@ -140,7 +137,7 @@ namespace mongols {
         }
     }
 
-    bool tcp_server::send_to_all_client(int fd, const std::string& str, const std::function<bool(const std::pair<size_t, size_t>&)>& h) {
+    bool tcp_server::send_to_all_client(int fd, const std::string& str, const filter_handler_function& h) {
         if (fd > 0) {
             if (this->work_pool.empty()) {
                 for (auto& i : this->clients) {
@@ -163,16 +160,13 @@ namespace mongols {
         return fd > 0 ? false : true;
     }
 
-    bool tcp_server::work(int fd, const std::function<std::pair<std::string, bool>(const std::string&
-            , bool&
-            , std::pair<size_t, size_t>&
-            , std::function<bool(const std::pair<size_t, size_t>&)>&) >& g) {
+    bool tcp_server::work(int fd, const handler_function& g) {
         if (fd > 0) {
             char buffer[this->buffer_size] = {0};
             ssize_t ret = recv(fd, buffer, this->buffer_size, MSG_WAITALL);
             if (ret >= 0) {
                 std::string input = std::move(std::string(buffer, ret));
-                std::function<bool(const std::pair<size_t, size_t>&)> send_to_other_filter = [](const std::pair<size_t, size_t>&) {
+                filter_handler_function send_to_other_filter = [](const std::pair<size_t, size_t>&) {
                     return true;
                 };
                 if (this->work_pool.empty()) {
@@ -210,10 +204,7 @@ ev_error:
     }
 
     void tcp_server::main_loop(struct epoll_event * event
-            , const std::function<std::pair<std::string, bool>(const std::string&
-            , bool&
-            , std::pair<size_t, size_t>&
-            , std::function<bool(const std::pair<size_t, size_t>&)>&)>& g) {
+            , const handler_function& g) {
         if ((event->events & EPOLLERR) ||
                 (event->events & EPOLLHUP) ||
                 (!(event->events & EPOLLIN))) {

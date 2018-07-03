@@ -129,7 +129,7 @@ namespace mongols {
     void http_server::run(const std::function<bool(const mongols::request&)>& req_filter
             , const std::function<void(const mongols::request&, mongols::response&)>& res_filter) {
 
-        auto g = std::bind(&http_server::work, this
+        tcp_server::handler_function g = std::bind(&http_server::work, this
                 , std::cref(req_filter)
                 , std::cref(res_filter)
                 , std::placeholders::_1
@@ -226,7 +226,7 @@ namespace mongols {
             , const std::string& input
             , bool& send_to_other
             , std::pair<size_t, size_t>&
-            , std::function<bool(const std::pair<size_t, size_t>&)>&) {
+            , tcp_server::filter_handler_function&) {
         send_to_other = false;
         mongols::request req;
         mongols::response res;

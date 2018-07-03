@@ -19,6 +19,14 @@ namespace mongols {
 
     class tcp_server {
     public:
+        typedef std::function<bool(const std::pair<size_t, size_t>&) > filter_handler_function;
+        typedef std::function<std::pair<std::string, bool>(
+                const std::string&
+                , bool&
+                , std::pair<size_t, size_t>&
+                , filter_handler_function&) > handler_function;
+
+    public:
         tcp_server() = delete;
         tcp_server(const std::string& host, int port, int timeout = 5000
                 , size_t buffer_size = 1024, size_t thread_size = 0, int max_event_size = 64);
@@ -26,10 +34,7 @@ namespace mongols {
 
 
     public:
-        void run(const std::function<std::pair<std::string, bool>(const std::string&
-                , bool&
-                , std::pair<size_t, size_t>&
-                , std::function<bool(const std::pair<size_t, size_t>&)>&) >&);
+        void run(const handler_function&);
 
         size_t get_buffer_size()const {
             return this->buffer_size;
@@ -51,15 +56,9 @@ namespace mongols {
         void setnonblocking(int fd);
         void add_client(int);
         void del_client(int);
-        bool send_to_all_client(int, const std::string&, const std::function<bool(const std::pair<size_t, size_t>&)>&);
-        bool work(int, const std::function<std::pair<std::string, bool>(const std::string&
-                , bool&
-                , std::pair<size_t, size_t>&
-                , std::function<bool(const std::pair<size_t, size_t>&)>&) >&);
-        void main_loop(struct epoll_event *, const std::function<std::pair<std::string, bool>(const std::string&
-                , bool&
-                , std::pair<size_t, size_t>&
-                , std::function<bool(const std::pair<size_t, size_t>&)>&) >&);
+        bool send_to_all_client(int, const std::string&, const filter_handler_function&);
+        bool work(int, const handler_function&);
+        void main_loop(struct epoll_event *, const handler_function&);
     };
 }
 
