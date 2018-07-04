@@ -1,7 +1,7 @@
 #ifndef WS_SERVER_HPP
 #define WS_SERVER_HPP
 
-#include "tcp_server.hpp"
+#include "tcp_threading_server.hpp"
 
 
 
@@ -36,7 +36,7 @@ namespace mongols {
                 , std::pair<size_t, size_t>&
                 , tcp_server::filter_handler_function&);
     private:
-        mongols::tcp_server server;
+        mongols::tcp_threading_server server;
 
     };
 }

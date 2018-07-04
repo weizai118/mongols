@@ -7,6 +7,7 @@
 #include <utility>
 #include <unordered_map>
 #include <mutex>
+#include <atomic>
 
 
 #include "thead_pool.hpp"
@@ -30,7 +31,6 @@ namespace mongols {
         tcp_server() = delete;
         tcp_server(const std::string& host, int port, int timeout = 5000
                 , size_t buffer_size = 1024
-                , size_t thread_size = 0
                 , int max_event_size = 64);
         virtual~tcp_server() = default;
 
@@ -38,31 +38,26 @@ namespace mongols {
     public:
         void run(const handler_function&);
 
-        size_t get_buffer_size()const {
-            return this->buffer_size;
-        }
+        size_t get_buffer_size()const;
     private:
         mongols::epoll epoll;
         std::string host;
         int port, listenfd, timeout;
         struct sockaddr_in serveraddr;
-        size_t buffer_size;
-    private:
-        std::unordered_map<int, std::pair<size_t, size_t>> clients;
-#ifdef MONGOLS_USE_MULTITHREAD
-        std::mutex main_mtx;
-        mongols::thread_pool work_pool;
-#endif     
-        static bool done;
+        
+        static std::atomic_bool done;
         static void signal_normal_cb(int sig);
-
-    private:
         void setnonblocking(int fd);
-        void add_client(int);
-        void del_client(int);
-        bool send_to_all_client(int, const std::string&, const filter_handler_function&);
-        bool work(int, const handler_function&);
         void main_loop(struct epoll_event *, const handler_function&);
+        
+    protected:
+        size_t buffer_size;
+        std::unordered_map<int, std::pair<size_t, size_t> > clients;
+        virtual void add_client(int);
+        virtual void del_client(int);
+        virtual bool send_to_all_client(int, const std::string&, const filter_handler_function&);
+        virtual bool work(int, const handler_function&);
+        virtual void process(int, const handler_function&);
     };
 }
 

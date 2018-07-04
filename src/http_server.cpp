@@ -1,4 +1,5 @@
 #include "http_server.hpp"
+#include "tcp_threading_server.hpp"
 
 #include <utility>
 #include <algorithm>
@@ -122,8 +123,19 @@ namespace mongols {
     };
 
     http_server::http_server(const std::string& host, int port, int timeout, size_t buffer_size, size_t thread_size, int max_event_size)
-    : server(host, port, timeout, buffer_size, thread_size, max_event_size) {
+    : server(0) {
+        if (thread_size > 0) {
+            this->server = new tcp_threading_server(host, port, timeout, buffer_size, thread_size, max_event_size);
+        } else {
+            this->server = new tcp_server(host, port, timeout, buffer_size, max_event_size);
+        }
 
+    }
+
+    http_server::~http_server() {
+        if (this->server) {
+            delete this->server;
+        }
     }
 
     void http_server::run(const std::function<bool(const mongols::request&)>& req_filter
@@ -137,7 +149,7 @@ namespace mongols {
                 , std::placeholders::_3
                 , std::placeholders::_4);
 
-        this->server.run(g);
+        this->server->run(g);
     }
 
     bool http_server::parse_reqeust(const std::string& str, mongols::request& req, std::string& body) {

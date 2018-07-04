@@ -43,6 +43,7 @@ namespace mongols {
         http_server() = delete;
         http_server(const std::string& host, int port, int timeout = 5000
                 , size_t buffer_size = 1024, size_t thread_size = 0, int max_event_size = 64);
+        virtual~http_server();
 
     public:
         void run(const std::function<bool(const mongols::request&)>& req_filter
@@ -60,7 +61,7 @@ namespace mongols {
         std::string create_response(mongols::response& res, bool b);
         std::string get_status_text(int status);
     private:
-        mongols::tcp_server server;
+        mongols::tcp_server *server;
     private:
         std::string tolower(std::string&);
 

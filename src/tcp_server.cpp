@@ -16,6 +16,7 @@
 #include <vector>
 #include <mutex>
 #include <functional>
+#include <atomic>
 
 
 #include "tcp_server.hpp"
@@ -24,7 +25,7 @@
 
 namespace mongols {
 
-    bool tcp_server::done = false;
+    std::atomic_bool tcp_server::done(false);
 
     void tcp_server::signal_normal_cb(int sig) {
         switch (sig) {
@@ -41,16 +42,10 @@ namespace mongols {
             , int port
             , int timeout
             , size_t buffer_size
-            , size_t thread_size
             , int max_event_size) :
     epoll(max_event_size, -1)
     , host(host), port(port), listenfd(0), timeout(timeout), serveraddr()
-    , buffer_size(buffer_size), clients()
-#ifdef MONGOLS_USE_MULTITHREAD
-    , main_mtx()
-    , work_pool(thread_size)
-#endif
-    {
+    , buffer_size(buffer_size), clients() {
 
     }
 
@@ -99,21 +94,6 @@ namespace mongols {
         while (!tcp_server::done) {
             this->epoll.loop(main_fun);
         }
-
-#ifdef MONGOLS_USE_MULTITHREAD
-        struct timespec thread_exit_timeout;
-        thread_exit_timeout.tv_sec = 0;
-        thread_exit_timeout.tv_nsec = 200;
-        auto thread_exit_fun = std::bind(&tcp_server::work, this, -1, std::cref(g));
-        for (size_t i = 0; i<this->work_pool.size(); ++i) {
-            this->work_pool.submit(thread_exit_fun);
-            std::this_thread::yield();
-            if (nanosleep(&thread_exit_timeout, 0) < 0) {
-                --i;
-            }
-        }
-#endif
-
     }
 
     void tcp_server::setnonblocking(int fd) {
@@ -122,49 +102,27 @@ namespace mongols {
     }
 
     void tcp_server::add_client(int fd) {
-#ifdef MONGOLS_USE_MULTITHREAD
-        std::lock_guard<std::mutex> lk(this->main_mtx);
         this->clients.insert(std::move(std::make_pair(fd, std::move(std::make_pair(0, 0)))));
-        std::this_thread::yield();
-#else
-        this->clients.insert(std::move(std::make_pair(fd, std::move(std::make_pair(0, 0)))));
-#endif
     }
 
     void tcp_server::del_client(int fd) {
-#ifdef MONGOLS_USE_MULTITHREAD
-        std::lock_guard<std::mutex> lk(this->main_mtx);
         this->clients.erase(fd);
-        std::this_thread::yield();
-#else
-        this->clients.erase(fd);
-#endif
     }
 
     bool tcp_server::send_to_all_client(int fd, const std::string& str, const filter_handler_function& h) {
         if (fd > 0) {
-#ifdef MONGOLS_USE_MULTITHREAD
-            std::lock_guard<std::mutex> lk(this->main_mtx);
-            for (auto& i : this->clients) {
-                if (i.first != fd && h(i.second)) {
-                    send(i.first, str.c_str(), str.size(), 0);
-                    std::this_thread::yield();
-                }
-            }
-#else
             for (auto& i : this->clients) {
                 if (i.first != fd && h(i.second)) {
                     send(i.first, str.c_str(), str.size(), 0);
                 }
             }
-#endif
         }
         return fd > 0 ? false : true;
     }
 
     bool tcp_server::work(int fd, const handler_function& g) {
         if (fd > 0) {
-            char buffer[this->buffer_size] = {0};
+            char buffer[this->buffer_size];
             ssize_t ret = recv(fd, buffer, this->buffer_size, MSG_WAITALL);
             if (ret >= 0) {
                 std::string input = std::move(std::string(buffer, ret));
@@ -172,36 +130,15 @@ namespace mongols {
                     return true;
                 };
 
-#ifdef MONGOLS_USE_MULTITHREAD
-                std::lock_guard<std::mutex> lk(this->main_mtx);
                 bool send_to_all = false;
                 std::pair<size_t, size_t>& g_u_id = this->clients[fd];
                 std::pair < std::string, bool> output = std::move(g(input, send_to_all, g_u_id, send_to_other_filter));
-                if (send(fd, output.first.c_str(), output.first.size(), 0) < 0 || output.second) {
-                    goto ev_error;
-                } else if (send_to_all) {
-                    this->work_pool.submit(std::bind(&tcp_server::send_to_all_client, this, fd, output.first, send_to_other_filter));
-                    std::this_thread::yield();
-                }
-                std::this_thread::yield();
+                size_t n = send(fd, output.first.c_str(), output.first.size(), 0);
 
-
-#else
-                bool send_to_all = false;
-                std::pair<size_t, size_t>& g_u_id = this->clients[fd];
-                std::pair < std::string, bool> output = std::move(g(input, send_to_all, g_u_id, send_to_other_filter));
-                if (send(fd, output.first.c_str(), output.first.size(), 0) < 0 || output.second) {
+                if (n < 0 || output.second) {
                     goto ev_error;
-                } else if (send_to_all) {
-#ifdef MONGOLS_USE_MULTITHREAD
-                    this->work_pool.submit(std::bind(&tcp_server::send_to_all_client, this, fd, std::cref(output.first), std::cref(send_to_other_filter)));
-                    std::this_thread::yield();
-#endif
                 }
 
-
-
-#endif
             } else {
 
 ev_error:
@@ -236,14 +173,19 @@ ev_error:
                 }
             }
         } else {
-#ifdef MONGOLS_USE_MULTITHREAD
-            this->work_pool.submit(std::bind(&tcp_server::work, this, int(event->data.fd), g));
-            std::this_thread::yield();
-#else
-            work(event->data.fd, g);
-#endif
+            this->process(event->data.fd, g);
         }
     }
+
+    size_t tcp_server::get_buffer_size() const {
+        return this->buffer_size;
+    }
+
+    void tcp_server::process(int fd, const handler_function& g) {
+        this->work(fd, g);
+    }
+
+
 
 
 }

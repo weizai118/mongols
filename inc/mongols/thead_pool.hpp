@@ -33,7 +33,7 @@ namespace mongols {
     class thread_pool {
     private:
         std::atomic_bool done;
-        safe_queue<std::function<bool() >> q;
+        safe_queue<std::function<bool() > > q;
         std::vector<std::thread> th;
         join_thread joiner;
 
