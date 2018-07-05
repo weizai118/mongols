@@ -166,11 +166,11 @@ namespace mongols {
         output.append("HTTP/1.1 ").append(std::to_string(res.status)).append(" " + this->get_status_text(res.status)).append("\r\n");
         res.headers.insert(std::make_pair("Server", "mongols/0.1.0"));
         if (b == KEEPALIVE_CONNECTION) {
-            res.headers.insert(std::make_pair("Connection", "keep-alive"));
+            res.headers.insert(std::move(std::make_pair("Connection", "keep-alive")));
         } else {
-            res.headers.insert(std::make_pair("Connection", "close"));
+            res.headers.insert(std::move(std::make_pair("Connection", "close")));
         }
-        res.headers.insert(std::make_pair("Content-Length", std::to_string(res.content.size() + 2)));
+        res.headers.insert(std::move(std::make_pair("Content-Length", std::to_string(res.content.size() + 2))));
         for (auto& i : res.headers) {
             output.append(i.first).append(": ").append(i.second).append("\r\n");
         }
