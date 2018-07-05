@@ -150,7 +150,7 @@ json_err:
             auto wsft = ws.getFrame(in_buffer, strlen(in_buffer), out);
 
             memset(in_buffer, 0, buffer_size);
-            if (wsft == TEXT_FRAME) {
+            if (wsft == TEXT_FRAME || wsft == BINARY_FRAME) {
                 out = std::move(f(out, keepalive, send_to_other, g_u_id, send_to_other_filter));
                 if (out == "close" || out == "quit" || out == "exit") {
                     goto ws_exit;
@@ -169,11 +169,6 @@ json_err:
             } else if (wsft == PING_FRAME) {
                 len = ws.makeFrame(PONG_FRAME, empty_msg, strlen(empty_msg), in_buffer, buffer_size);
                 response.assign(in_buffer, len);
-                goto ws_done;
-            } else if (wsft == BINARY_FRAME) {
-                len = ws.makeFrame(CLOSING_FRAME, binary_msg, strlen(binary_msg), in_buffer, buffer_size);
-                response.assign(in_buffer, len);
-                keepalive = CLOSE_CONNECTION;
                 goto ws_done;
             } else if (wsft == CLOSING_FRAME
                     || wsft == ERROR_FRAME
