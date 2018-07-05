@@ -295,10 +295,6 @@ namespace mongols {
             }
             if (req_filter(req)) {
 
-                mongols::helloworld default_instance;
-                default_instance.handler(req, res);
-
-
                 if ((tmp = req.headers.find("Connection")) != req.headers.end()) {
                     if (this->tolower(tmp->second) == "keep-alive") {
                         conn = KEEPALIVE_CONNECTION;
