@@ -31,7 +31,7 @@ namespace mongols {
 
     std::string trim(const std::string& s);
 
-    void parse_param(const std::string& data, std::unordered_map<std::string, std::string>& result, char c, char cc);
+    void parse_param(const std::string& data, std::unordered_map<std::string, std::string>& result, char c = '&', char cc = '=');
 
     void split(const std::string& s, char delim, std::vector<std::string>& v);
 
@@ -59,11 +59,11 @@ namespace mongols {
             , EMAIL = R"(^[0-9a-zA-Z]+(([-_\.])?[0-9a-zA-Z]+)?\@[0-9a-zA-Z]+[-_]?[0-9a-zA-Z]+(\.[0-9a-zA-Z]+)+$)"
             , URL = R"(^(http[s]?|ftp)://[0-9a-zA-Z\._-]([0-9a-zA-Z]+/?)+\??.*$)";
 
-    std::string base64_encode(const std::string&,bool=false);
-    std::string base64_decode(const std::string&,bool=false);
-    
+    std::string base64_encode(const std::string&, bool = false);
+    std::string base64_decode(const std::string&, bool = false);
+
     std::string sha1(const std::string&);
-    
+
     std::string bin2hex(const std::string&);
 }
 

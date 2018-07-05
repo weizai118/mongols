@@ -45,6 +45,7 @@ namespace mongols {
                 , int timeout = 5000
                 , size_t buffer_size = 1024
                 , size_t thread_size = 0
+                , size_t max_body_size = 1024
                 , int max_event_size = 64);
         virtual~http_server();
 
@@ -64,8 +65,10 @@ namespace mongols {
         std::string create_response(mongols::response& res, bool b);
         std::string get_status_text(int status);
         std::string tolower(std::string&);
+        void upload(mongols::request&, const std::string&);
     private:
         mongols::tcp_server *server;
+        size_t max_body_size;
 
 
 

@@ -1,10 +1,18 @@
-#include "http_server.hpp"
-#include "tcp_threading_server.hpp"
-
+#include <sys/stat.h>
 #include <utility>
 #include <algorithm>
 #include <functional>
+#include <memory>
 
+
+#include "tcp_threading_server.hpp"
+#include "http_server.hpp"
+#include "util.hpp"
+#include "MPFDParser/Parser.h"
+
+#define form_urlencoded_type "application/x-www-form-urlencoded"
+#define form_urlencoded_type_len (sizeof(form_urlencoded_type) - 1)
+#define TEMP_DIRECTORY "temp"
 
 namespace mongols {
 
@@ -123,11 +131,12 @@ namespace mongols {
     };
 
     http_server::http_server(const std::string& host, int port
-    , int timeout
-    , size_t buffer_size
-    , size_t thread_size
-    , int max_event_size)
-    : server(0) {
+            , int timeout
+            , size_t buffer_size
+            , size_t thread_size
+            , size_t max_body_size
+            , int max_event_size)
+    : server(0), max_body_size(max_body_size) {
         if (thread_size > 0) {
             this->server = new tcp_threading_server(host, port, timeout, buffer_size, thread_size, max_event_size);
         } else {
@@ -236,6 +245,37 @@ namespace mongols {
         return str;
     }
 
+    void http_server::upload(mongols::request& req, const std::string& body) {
+        try {
+            if ((is_dir(TEMP_DIRECTORY) || mkdir(TEMP_DIRECTORY, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == 0)) {
+                std::shared_ptr<MPFD::Parser> POSTParser(new MPFD::Parser());
+                POSTParser->SetTempDirForFileUpload(TEMP_DIRECTORY);
+                POSTParser->SetUploadedFilesStorage(MPFD::Parser::StoreUploadedFilesInFilesystem);
+                POSTParser->SetMaxCollectedDataLength(this->server->get_buffer_size());
+                POSTParser->SetContentType(req.headers["Content-Type"]);
+                POSTParser->AcceptSomeData(body.c_str(), body.size());
+                auto fields = POSTParser->GetFieldsMap();
+
+                for (auto &item : fields) {
+                    if (item.second->GetType() == MPFD::Field::TextType) {
+                        req.form.insert(std::make_pair(item.first, item.second->GetTextTypeContent()));
+                    } else {
+                        std::string upload_file_name = item.second->GetFileName(), ext;
+                        std::string::size_type p = upload_file_name.find_last_of(".");
+                        if (p != std::string::npos) {
+                            ext = upload_file_name.substr(p);
+                        }
+                        std::string temp_file = TEMP_DIRECTORY + ("/" + mongols::random_string(req.client + item.second->GetFileName()).append(ext));
+                        rename(item.second->GetTempFileName().c_str(), temp_file.c_str());
+                        req.form.insert(std::make_pair(item.first, temp_file));
+                    }
+                }
+            }
+        } catch (MPFD::Exception& err) {
+
+        }
+    }
+
     std::pair < std::string, bool> http_server::work(
             const std::function<bool(const mongols::request&)>& req_filter
             , const std::function<void(const mongols::request&, mongols::response&)>& res_filter
@@ -249,20 +289,36 @@ namespace mongols {
         std::string body, output;
         bool conn = CLOSE_CONNECTION;
         if (this->parse_reqeust(input, req, body)) {
-
+            std::unordered_map<std::string, std::string>::iterator tmp;
+            if (body.size()>this->max_body_size) {
+                body.clear();
+            }
             if (req_filter(req)) {
 
                 mongols::helloworld default_instance;
                 default_instance.handler(req, res);
 
-                res_filter(req, res);
 
-                std::unordered_map<std::string, std::string>::iterator tmp;
                 if ((tmp = req.headers.find("Connection")) != req.headers.end()) {
                     if (this->tolower(tmp->second) == "keep-alive") {
                         conn = KEEPALIVE_CONNECTION;
                     }
                 }
+                if (!req.param.empty()) {
+                    mongols::parse_param(req.param, req.form);
+                }
+                if (!body.empty()&& (tmp = req.headers.find("Content-Type")) != req.headers.end()) {
+                    if (tmp->second.size() != form_urlencoded_type_len
+                            || tmp->second != form_urlencoded_type) {
+                        this->upload(req, body);
+                        body.clear();
+                    } else {
+                        mongols::parse_param(body, req.form);
+                    }
+                }
+
+                res_filter(req, res);
+
             } else {
                 goto error_not_found;
             }
@@ -272,7 +328,6 @@ error_not_found:
             mongols::notfound default_instance;
             default_instance.handler(req, res);
         }
-
 
 
         output = std::move(this->create_response(res, conn));

@@ -335,7 +335,7 @@ namespace mongols {
         return std::string(it, rit.base());
     }
 
-    void parse_param(const std::string& data, std::unordered_map<std::string, std::string>& result, char c = '&', char cc = '=') {
+    void parse_param(const std::string& data, std::unordered_map<std::string, std::string>& result, char c, char cc) {
         if (data.empty())return;
         size_t start = 0, p, q;
         while (true) {
