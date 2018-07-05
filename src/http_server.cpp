@@ -108,28 +108,6 @@ namespace mongols {
         return this->body;
     }
 
-    class helloworld : public mongols::servlet {
-    public:
-        helloworld() = default;
-        virtual~helloworld() = default;
-
-        void handler(request& req, response& res) {
-            res.headers.find("Content-Type")->second = "text/plain;charset=utf-8";
-            res.content = std::move("hello,world");
-            res.status = 200;
-
-        }
-
-    };
-
-    class notfound : public mongols::servlet {
-    public:
-
-        void handler(request& req, response& res) {
-        }
-
-    };
-
     http_server::http_server(const std::string& host, int port
             , int timeout
             , size_t buffer_size
@@ -289,14 +267,15 @@ namespace mongols {
         std::string body, output;
         bool conn = CLOSE_CONNECTION;
         if (this->parse_reqeust(input, req, body)) {
-            std::unordered_map<std::string, std::string>::iterator tmp;
+
             if (body.size()>this->max_body_size) {
                 body.clear();
             }
             if (req_filter(req)) {
 
+                std::unordered_map<std::string, std::string>::iterator tmp;
                 if ((tmp = req.headers.find("Connection")) != req.headers.end()) {
-                    if (this->tolower(tmp->second) == "keep-alive") {
+                    if (tmp->second == "keep-alive") {
                         conn = KEEPALIVE_CONNECTION;
                     }
                 }
@@ -315,14 +294,7 @@ namespace mongols {
 
                 res_filter(req, res);
 
-            } else {
-                goto error_not_found;
             }
-        } else {
-error_not_found:
-
-            mongols::notfound default_instance;
-            default_instance.handler(req, res);
         }
 
 
