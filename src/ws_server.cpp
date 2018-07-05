@@ -97,7 +97,7 @@ namespace mongols {
 
                 };
 
-                json11::Json tmp = json11::Json::object({
+                json11::Json result = json11::Json::object({
                     {"message", root["message"].string_value()}
                     ,
                     {"uid", root["uid"].int_value()}
@@ -106,7 +106,7 @@ namespace mongols {
                     ,
                     {"name", root["name"].string_value()}
                 });
-                return tmp.dump();
+                return result.dump();
             }
         } else {
 json_err:
