@@ -18,8 +18,11 @@ namespace mongols {
     public:
         ws_server() = delete;
         virtual~ws_server() = default;
-        ws_server(const std::string& host, int port, int timeout = 5000
-                , size_t buffer_size = 1024, size_t thread_size = 0, int max_event_size = 64);
+        ws_server(const std::string& host, int port
+                , int timeout = 5000
+                , size_t buffer_size = 1024,
+                size_t thread_size = std::thread::hardware_concurrency()
+                , int max_event_size = 64);
 
     public:
         void run(const handler_function&);

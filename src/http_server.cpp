@@ -122,7 +122,11 @@ namespace mongols {
 
     };
 
-    http_server::http_server(const std::string& host, int port, int timeout, size_t buffer_size, size_t thread_size, int max_event_size)
+    http_server::http_server(const std::string& host, int port
+    , int timeout
+    , size_t buffer_size
+    , size_t thread_size
+    , int max_event_size)
     : server(0) {
         if (thread_size > 0) {
             this->server = new tcp_threading_server(host, port, timeout, buffer_size, thread_size, max_event_size);

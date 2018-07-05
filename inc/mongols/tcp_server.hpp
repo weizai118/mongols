@@ -6,11 +6,10 @@
 #include <string>
 #include <utility>
 #include <unordered_map>
-#include <mutex>
 #include <atomic>
 
 
-#include "thead_pool.hpp"
+
 #include "epoll.hpp"
 
 #define CLOSE_CONNECTION true
@@ -44,12 +43,12 @@ namespace mongols {
         std::string host;
         int port, listenfd, timeout;
         struct sockaddr_in serveraddr;
-        
+
         static std::atomic_bool done;
         static void signal_normal_cb(int sig);
         void setnonblocking(int fd);
         void main_loop(struct epoll_event *, const handler_function&);
-        
+
     protected:
         size_t buffer_size;
         std::unordered_map<int, std::pair<size_t, size_t> > clients;
