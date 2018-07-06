@@ -241,9 +241,9 @@ namespace mongols {
                         std::string upload_file_name = item.second->GetFileName(), ext;
                         std::string::size_type p = upload_file_name.find_last_of(".");
                         if (p != std::string::npos) {
-                            ext = upload_file_name.substr(p);
+                            ext = std::move(upload_file_name.substr(p));
                         }
-                        std::string temp_file = TEMP_DIRECTORY + ("/" + mongols::random_string(req.client + item.second->GetFileName()).append(ext));
+                        std::string temp_file = std::move(TEMP_DIRECTORY + ("/" + mongols::random_string(req.client + item.second->GetFileName()).append(ext)));
                         rename(item.second->GetTempFileName().c_str(), temp_file.c_str());
                         req.form.insert(std::make_pair(item.first, temp_file));
                     }

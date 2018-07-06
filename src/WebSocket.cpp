@@ -112,7 +112,7 @@ std::string WebSocket::answerHandshake() {
 size_t WebSocket::makeFrame(WebSocketFrameType frame_type, const char* msg, size_t msg_length, char* buffer, size_t buffer_size) {
     size_t pos = 0;
     size_t size = msg_length;
-    buffer[pos++] = (unsigned char) frame_type;
+    buffer[pos++] = (char) frame_type;
 
     if (size <= 125) {
         buffer[pos++] = size;
