@@ -97,16 +97,8 @@ namespace mongols {
 
                 };
 
-                json11::Json result = json11::Json::object({
-                    {"message", root["message"].string_value()}
-                    ,
-                    {"uid", root["uid"].int_value()}
-                    ,
-                    {"gid", root["gid"].int_value()}
-                    ,
-                    {"name", root["name"].string_value()}
-                });
-                return result.dump();
+
+                return input;
             }
         } else {
 json_err:
