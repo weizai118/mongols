@@ -164,7 +164,7 @@ ev_error:
                 socklen_t clilen;
                 int connfd = accept(listenfd, (struct sockaddr*) &clientaddr, &clilen);
                 if (connfd > 0) {
-                    setnonblocking(connfd);
+                    this->setnonblocking(connfd);
                     this->epoll.add(connfd, EPOLLIN | EPOLLRDHUP | EPOLLET);
 
                     this->add_client(connfd);
