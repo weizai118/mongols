@@ -139,7 +139,7 @@ json_err:
             std::string out;
             int len;
 
-            auto wsft = ws.getFrame(in_buffer, strlen(in_buffer), out);
+            auto wsft = ws.getFrame(in_buffer, buffer_size, out);
 
             memset(in_buffer, 0, buffer_size);
             if (wsft == TEXT_FRAME || wsft == BINARY_FRAME) {
