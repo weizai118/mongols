@@ -141,17 +141,17 @@ json_err:
 
             auto wsft = ws.getFrame(in_buffer, buffer_size, out);
 
-            memset(in_buffer, 0, buffer_size);
+            memset(in_buffer, '\0', buffer_size);
             if (wsft == TEXT_FRAME) {
-                out = std::move(f(out, keepalive, send_to_other, g_u_id, send_to_other_filter));
-                if (out == "close" || out == "quit" || out == "exit") {
+                std::string output = std::move(f(out, keepalive, send_to_other, g_u_id, send_to_other_filter));
+                if (output == "close" || output == "quit" || output == "exit") {
                     goto ws_exit;
                 }
-                if (out.empty()) {
-                    out = std::move("empty message.");
+                if (output.empty()) {
+                    output = std::move("empty message.");
                     send_to_other = false;
                 }
-                len = ws.makeFrame(TEXT_FRAME, out.c_str(), out.size(), in_buffer, buffer_size);
+                len = ws.makeFrame(TEXT_FRAME, output.c_str(), output.size(), in_buffer, buffer_size);
                 response.assign(in_buffer, len);
                 goto ws_done;
             } else if (wsft == BINARY_FRAME) {
