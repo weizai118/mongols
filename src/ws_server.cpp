@@ -142,7 +142,7 @@ json_err:
             auto wsft = ws.getFrame(in_buffer, buffer_size, out);
 
             memset(in_buffer, 0, buffer_size);
-            if (wsft == TEXT_FRAME || wsft == BINARY_FRAME) {
+            if (wsft == TEXT_FRAME) {
                 out = std::move(f(out, keepalive, send_to_other, g_u_id, send_to_other_filter));
                 if (out == "close" || out == "quit" || out == "exit") {
                     goto ws_exit;
@@ -151,8 +151,12 @@ json_err:
                     out = std::move("empty message.");
                     send_to_other = false;
                 }
-                len = ws.makeFrame((WebSocketFrameType) wsft, out.c_str(), out.size(), in_buffer, buffer_size);
+                len = ws.makeFrame(TEXT_FRAME, out.c_str(), out.size(), in_buffer, buffer_size);
                 response.assign(in_buffer, len);
+                goto ws_done;
+            } else if (wsft == BINARY_FRAME) {
+                len = ws.makeFrame(TEXT_FRAME, binary_msg, strlen(binary_msg), in_buffer, buffer_size);
+                response.assign(binary_msg, len);
                 goto ws_done;
             } else if (wsft == PONG_FRAME) {
                 len = ws.makeFrame(PING_FRAME, empty_msg, strlen(empty_msg), in_buffer, buffer_size);
