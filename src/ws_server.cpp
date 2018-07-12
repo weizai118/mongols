@@ -168,8 +168,6 @@ json_err:
                 goto ws_done;
             } else if (wsft == CLOSING_FRAME
                     || wsft == ERROR_FRAME
-                    || wsft == INCOMPLETE_TEXT_FRAME
-                    || wsft == INCOMPLETE_BINARY_FRAME
                     || wsft == INCOMPLETE_FRAME) {
 ws_exit:
                 len = ws.makeFrame(CLOSING_FRAME, close_msg, strlen(close_msg), in_buffer, buffer_size);
