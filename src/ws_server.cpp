@@ -2,6 +2,7 @@
 #include "lib/libwshandshake.hpp"
 #include "lib/WebSocket.h"
 #include "lib/json11.hpp"
+#include "lib/cJSON.h"
 
 #include <algorithm>
 #include <vector>
@@ -103,7 +104,7 @@ namespace mongols {
         } else {
 json_err:
 
-            return "error json message";
+            return err;
         }
 
     }
@@ -132,7 +133,7 @@ json_err:
                     , *binary_msg = "not accept binary message.";
 
             const size_t buffer_size = this->server.get_buffer_size();
-            char in_buffer[buffer_size];
+            char in_buffer[buffer_size],out_buffer[buffer_size];
 
             strcpy(in_buffer, input.c_str());
 
@@ -141,7 +142,6 @@ json_err:
 
             auto wsft = ws.getFrame(in_buffer, buffer_size, out);
 
-            memset(in_buffer, '\0', buffer_size);
             if (wsft == TEXT_FRAME) {
                 std::string output = std::move(f(out, keepalive, send_to_other, g_u_id, send_to_other_filter));
                 if (output == "close" || output == "quit" || output == "exit") {
@@ -151,32 +151,35 @@ json_err:
                     output = std::move("empty message.");
                     send_to_other = false;
                 }
-                len = ws.makeFrame(TEXT_FRAME, output.c_str(), output.size(), in_buffer, buffer_size);
-                response.assign(in_buffer, len);
+                len = ws.makeFrame(TEXT_FRAME, output.c_str(), output.size(), out_buffer, buffer_size);
+                response.assign(out_buffer, len);
                 goto ws_done;
             } else if (wsft == BINARY_FRAME) {
-                len = ws.makeFrame(TEXT_FRAME, binary_msg, strlen(binary_msg), in_buffer, buffer_size);
-                response.assign(binary_msg, len);
+                len = ws.makeFrame(TEXT_FRAME, binary_msg, strlen(binary_msg), out_buffer, buffer_size);
+                response.assign(out_buffer, len);
                 goto ws_done;
             } else if (wsft == PONG_FRAME) {
-                len = ws.makeFrame(PING_FRAME, empty_msg, strlen(empty_msg), in_buffer, buffer_size);
-                response.assign(in_buffer, len);
+                len = ws.makeFrame(PING_FRAME, empty_msg, strlen(empty_msg), out_buffer, buffer_size);
+                response.assign(out_buffer, len);
                 goto ws_done;
             } else if (wsft == PING_FRAME) {
-                len = ws.makeFrame(PONG_FRAME, empty_msg, strlen(empty_msg), in_buffer, buffer_size);
-                response.assign(in_buffer, len);
+                len = ws.makeFrame(PONG_FRAME, empty_msg, strlen(empty_msg), out_buffer, buffer_size);
+                response.assign(out_buffer, len);
                 goto ws_done;
-            } else if (wsft == CLOSING_FRAME
-                    || wsft == ERROR_FRAME
+            } else if (wsft == INCOMPLETE_TEXT_FRAME
+                    || wsft == INCOMPLETE_BINARY_FRAME 
                     || wsft == INCOMPLETE_FRAME) {
+                goto ws_exit;
+            } else if (wsft == CLOSING_FRAME
+                    || wsft == ERROR_FRAME) {
 ws_exit:
-                len = ws.makeFrame(CLOSING_FRAME, close_msg, strlen(close_msg), in_buffer, buffer_size);
-                response.assign(in_buffer, len);
+                len = ws.makeFrame(CLOSING_FRAME, close_msg, strlen(close_msg), out_buffer, buffer_size);
+                response.assign(out_buffer, len);
                 keepalive = CLOSE_CONNECTION;
                 goto ws_done;
             } else {
-                len = ws.makeFrame(ERROR_FRAME, error_msg, strlen(error_msg), in_buffer, buffer_size);
-                response.assign(in_buffer, len);
+                len = ws.makeFrame(ERROR_FRAME, error_msg, strlen(error_msg), out_buffer, buffer_size);
+                response.assign(out_buffer, len);
                 keepalive = CLOSE_CONNECTION;
                 goto ws_done;
             }
