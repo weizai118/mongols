@@ -359,6 +359,10 @@ namespace mongols {
     void split(const std::string& s, char delim, std::vector<std::string>& v) {
         auto i = 0;
         auto pos = s.find(delim);
+        if (pos == std::string::npos) {
+            v.push_back(s);
+            return;
+        }
         while (pos != std::string::npos) {
             v.push_back(s.substr(i, pos - i));
             i = ++pos;

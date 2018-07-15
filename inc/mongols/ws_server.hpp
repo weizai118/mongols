@@ -33,7 +33,7 @@ namespace mongols {
                 , bool&
                 , std::pair<size_t, size_t>&
                 , tcp_server::filter_handler_function&);
-        std::string ws_json_parse(const std::string&
+        std::string ws_message_parse(const std::string&
                 , bool&
                 , bool&
                 , std::pair<size_t, size_t>&

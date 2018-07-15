@@ -1,11 +1,13 @@
 #include "ws_server.hpp"
-#include "lib/libwshandshake.hpp"
-#include "lib/WebSocket.h"
-#include "lib/json11.hpp"
-
+//#include "lib/libwshandshake.hpp"
+//#include "lib/WebSocket.h"
+#include "lib/websocket.hpp"
+//#include "lib/json11.hpp"
+#include "util.hpp"
 
 #include <algorithm>
 #include <vector>
+#include <sstream>
 
 
 namespace mongols {
@@ -26,7 +28,7 @@ namespace mongols {
     }
 
     void ws_server::run() {
-        handler_function f = std::bind(&ws_server::ws_json_parse, this
+        handler_function f = std::bind(&ws_server::ws_message_parse, this
                 , std::placeholders::_1
                 , std::placeholders::_2
                 , std::placeholders::_3
@@ -42,71 +44,76 @@ namespace mongols {
                 ));
     }
 
-    std::string ws_server::ws_json_parse(const std::string& input
+    std::string ws_server::ws_message_parse(const std::string& message
             , bool& keepalive
             , bool& send_to_other
             , std::pair<size_t, size_t>& g_u_id
             , tcp_server::filter_handler_function& send_to_other_filter) {
-        if (input == "quit" || input == "exit" || input == "close")return input;
-        std::string err;
-        json11::Json root = json11::Json::parse(input, err);
-        if (err.empty()) {
-            if (!root["uid"].is_number()
-                    || !root["gid"].is_number()
-                    || !root["name"].is_string()
-                    || !root["message"].is_string()
-                    || !root["gfilter"].is_array()
-                    || !root["ufilter"].is_array()) {
-                goto json_err;
-            } else {
-                if (g_u_id.first == 0) {
-                    g_u_id.first = root["gid"].int_value();
-                }
-                if (g_u_id.second == 0) {
-                    g_u_id.second = root["uid"].int_value();
-                }
-                keepalive = KEEPALIVE_CONNECTION;
-                send_to_other = true;
-                std::vector<size_t> gfilter, ufilter;
-                for (auto &i : root["gfilter"].array_items()) {
-                    if (i.is_number()) {
-                        gfilter.push_back(i.int_value());
-                    }
-                }
-                for (auto &i : root["ufilter"].array_items()) {
-                    if (i.is_number()) {
-                        ufilter.push_back(i.int_value());
-                    }
-                }
-                send_to_other_filter = [ = ](const std::pair<size_t, size_t>& cur_g_u_id){
-                    bool res = false;
-                    if (gfilter.empty()) {
-                        if (ufilter.empty()) {
-                            res = true;
-                        } else {
-                            res = std::find(ufilter.begin(), ufilter.end(), cur_g_u_id.second) != ufilter.end();
+        std::istringstream stream(message.c_str());
+        std::string tmp, k, v;
+        std::string::size_type pos = 0;
+        keepalive = KEEPALIVE_CONNECTION;
+        send_to_other = true;
+        std::vector<size_t> gfilter, ufilter;
+        int n = 0;
+        while (n != 4 && std::getline(stream, tmp) && tmp != "\r\n") {
+            pos = tmp.find(": ");
+            if (pos != std::string::npos) {
+                k = std::move(tmp.substr(0, pos));
+                v = std::move(tmp.substr(pos + 2, tmp.size() - 2 - pos));
+                try {
+                    if (k == "uid") {
+                        if (g_u_id.second == 0) {
+                            g_u_id.second = std::stoul(v);
                         }
-                    } else {
-                        if (ufilter.empty()) {
-                            res = std::find(gfilter.begin(), gfilter.end(), cur_g_u_id.first) != gfilter.end();
-                        } else {
-                            res = std::find(gfilter.begin(), gfilter.end(), cur_g_u_id.first) != gfilter.end()
-                                    && std::find(ufilter.begin(), ufilter.end(), cur_g_u_id.second) != ufilter.end();
+                        ++n;
+                    } else if (k == "gid") {
+                        if (g_u_id.first == 0) {
+                            g_u_id.first = std::stoul(v);
                         }
+                        ++n;
+                    } else if (k == "ufilter") {
+                        std::vector<std::string> utmp;
+                        split(v, ',', utmp);
+                        for (auto& i : utmp) {
+                            ufilter.push_back(std::stoul(i));
+                        }
+                        ++n;
+                    } else if (k == "gfilter") {
+                        std::vector<std::string> gtmp;
+                        split(v, ',', gtmp);
+                        for (auto& i : gtmp) {
+                            gfilter.push_back(std::stoul(i));
+                        }
+                        ++n;
                     }
-                    return res;
+                } catch (...) {
 
-                };
-
-
-                return input;
+                }
             }
-        } else {
-json_err:
-
-            return err;
         }
 
+        send_to_other_filter = [ = ](const std::pair<size_t, size_t>& cur_g_u_id){
+            bool res = false;
+            if (gfilter.empty()) {
+                if (ufilter.empty()) {
+                    res = true;
+                } else {
+                    res = std::find(ufilter.begin(), ufilter.end(), cur_g_u_id.second) != ufilter.end();
+                }
+            } else {
+                if (ufilter.empty()) {
+                    res = std::find(gfilter.begin(), gfilter.end(), cur_g_u_id.first) != gfilter.end();
+                } else {
+                    res = std::find(gfilter.begin(), gfilter.end(), cur_g_u_id.first) != gfilter.end()
+                            && std::find(ufilter.begin(), ufilter.end(), cur_g_u_id.second) != ufilter.end();
+                }
+            }
+            return res;
+
+        };
+
+        return message;
     }
 
     std::pair<std::string, bool> ws_server::work(const handler_function& f
@@ -117,11 +124,11 @@ json_err:
         std::string response;
         bool keepalive = KEEPALIVE_CONNECTION;
         send_to_other = false;
-        WebSocket ws;
+
         if (input[0] == 'G') {
 
-            if (ws.parseHandshake(input.c_str(), input.size()) == OPENING_FRAME) {
-                response = ws.answerHandshake();
+            if (ws_handshake(input, response) == WS_STATUS_CONNECT) {
+
             } else {
                 response = "";
                 keepalive = CLOSE_CONNECTION;
@@ -129,57 +136,28 @@ json_err:
             goto ws_done;
         } else {
 
-            const char* close_msg = "connection closed.", *empty_msg = "", *error_msg = "error message."
-                    , *binary_msg = "not accept binary message.";
+            const std::string close_msg = "connection closed.", empty_msg, error_msg = "error message."
+                    , binary_msg = "not accept binary message.";
+            std::string message;
 
-            const size_t buffer_size = this->server.get_buffer_size();
-            char in_buffer[buffer_size],out_buffer[buffer_size];
+            auto wsft = (WS_FrameType) ws_decode_frame(input, message);
 
-            strcpy(in_buffer, input.c_str());
 
-            std::string out;
-            int len;
-
-            auto wsft = ws.getFrame(in_buffer, buffer_size, out);
-
-            if (wsft == TEXT_FRAME) {
-                std::string output = std::move(f(out, keepalive, send_to_other, g_u_id, send_to_other_filter));
-                if (output == "close" || output == "quit" || output == "exit") {
-                    goto ws_exit;
-                }
-                if (output.empty()) {
-                    output = std::move("empty message.");
-                    send_to_other = false;
-                }
-                len = ws.makeFrame(TEXT_FRAME, output.c_str(), output.size(), out_buffer, buffer_size);
-                response.assign(out_buffer, len);
+            if (wsft == WS_TEXT_FRAME) {
+                f(message, keepalive, send_to_other, g_u_id, send_to_other_filter);
+                response = input;
                 goto ws_done;
-            } else if (wsft == BINARY_FRAME) {
-                len = ws.makeFrame(TEXT_FRAME, binary_msg, strlen(binary_msg), out_buffer, buffer_size);
-                response.assign(out_buffer, len);
+            } else if (wsft == WS_BINARY_FRAME) {
+                ws_encode_frame(binary_msg, response, WS_TEXT_FRAME);
                 goto ws_done;
-            } else if (wsft == PONG_FRAME) {
-                len = ws.makeFrame(PING_FRAME, empty_msg, strlen(empty_msg), out_buffer, buffer_size);
-                response.assign(out_buffer, len);
+            } else if (wsft == WS_PONG_FRAME) {
+                ws_encode_frame(empty_msg, response, WS_PING_FRAME);
                 goto ws_done;
-            } else if (wsft == PING_FRAME) {
-                len = ws.makeFrame(PONG_FRAME, empty_msg, strlen(empty_msg), out_buffer, buffer_size);
-                response.assign(out_buffer, len);
-                goto ws_done;
-            } else if (wsft == INCOMPLETE_TEXT_FRAME
-                    || wsft == INCOMPLETE_BINARY_FRAME 
-                    || wsft == INCOMPLETE_FRAME) {
-                goto ws_exit;
-            } else if (wsft == CLOSING_FRAME
-                    || wsft == ERROR_FRAME) {
-ws_exit:
-                len = ws.makeFrame(CLOSING_FRAME, close_msg, strlen(close_msg), out_buffer, buffer_size);
-                response.assign(out_buffer, len);
-                keepalive = CLOSE_CONNECTION;
+            } else if (wsft == WS_PING_FRAME) {
+                ws_encode_frame(empty_msg, response, WS_PONG_FRAME);
                 goto ws_done;
             } else {
-                len = ws.makeFrame(ERROR_FRAME, error_msg, strlen(error_msg), out_buffer, buffer_size);
-                response.assign(out_buffer, len);
+                ws_encode_frame(close_msg, response, WS_CLOSING_FRAME);
                 keepalive = CLOSE_CONNECTION;
                 goto ws_done;
             }
