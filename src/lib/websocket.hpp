@@ -86,7 +86,7 @@ namespace mongols {
         }
 
         ret = (frameData[0] & 0x80);
-        if ((frameData[0] & 0x80) != 0x80) {
+        if (ret != 0x80) {
             ret = WS_ERROR_FRAME;
         }
 
@@ -128,40 +128,84 @@ namespace mongols {
         return ret;
     }
 
-    int ws_encode_frame(const std::string& inMessage, std::string &outFrame, enum WS_FrameType frameType) {
-        int ret = WS_EMPTY_FRAME;
-        const uint32_t messageLength = inMessage.size();
-        if (messageLength > 32767) {
-            return WS_ERROR_FRAME;
+    size_t ws_calc_frame_size(enum WS_FrameType flags, size_t data_len) {
+        size_t size = data_len + 2; // body + 2 bytes of head
+        if (data_len >= 126) {
+            if (data_len > 0xFFFF) {
+                size += 8;
+            } else {
+                size += 2;
+            }
+        }
+        if (flags & 0x20) {
+            size += 4;
         }
 
-        uint8_t payloadFieldExtraBytes = (messageLength <= 0x7d) ? 0 : 2;
-        uint8_t frameHeaderSize = 2 + payloadFieldExtraBytes;
-        uint8_t *frameHeader = new uint8_t[frameHeaderSize];
-        memset(frameHeader, 0, frameHeaderSize);
-        frameHeader[0] = static_cast<uint8_t> (0x80 | frameType);
-
-        if (messageLength <= 0x7d) {
-            frameHeader[1] = static_cast<uint8_t> (messageLength);
-        } else {
-            frameHeader[1] = 0x7e;
-            uint16_t len = htons(messageLength);
-            memcpy(&frameHeader[2], &len, payloadFieldExtraBytes);
-        }
-
-
-        uint32_t frameSize = frameHeaderSize + messageLength;
-        char *frame = new char[frameSize + 1];
-        memcpy(frame, frameHeader, frameHeaderSize);
-        memcpy(frame + frameHeaderSize, inMessage.c_str(), messageLength);
-        frame[frameSize] = '\0';
-        outFrame = frame;
-
-        delete[] frame;
-        delete[] frameHeader;
-        ret = frameType;
-        return ret;
+        return size;
     }
+
+    uint8_t ws_decode(char * dst, const char * src, size_t len, const char mask[4], uint8_t mask_offset) {
+        size_t i = 0;
+        for (; i < len; i++) {
+            dst[i] = src[i] ^ mask[(i + mask_offset) % 4];
+        }
+
+        return (uint8_t) ((i + mask_offset) % 4);
+    }
+
+    size_t ws_build_frame(char * frame, enum WS_FrameType flags, const char mask[4], const char * data, size_t data_len) {
+        size_t body_offset = 0;
+        frame[0] = 0;
+        frame[1] = 0;
+        if (flags & 0x10) {
+            frame[0] = (char) (1 << 7);
+        }
+        frame[0] |= flags & 0xF;
+        if (flags & 0x20) {
+            frame[1] = (char) (1 << 7);
+        }
+        if (data_len < 126) {
+            frame[1] |= data_len;
+            body_offset = 2;
+        } else if (data_len <= 0xFFFF) {
+            frame[1] |= 126;
+            frame[2] = (char) (data_len >> 8);
+            frame[3] = (char) (data_len & 0xFF);
+            body_offset = 4;
+        } else {
+            frame[1] |= 127;
+            frame[2] = (char) ((data_len >> 56) & 0xFF);
+            frame[3] = (char) ((data_len >> 48) & 0xFF);
+            frame[4] = (char) ((data_len >> 40) & 0xFF);
+            frame[5] = (char) ((data_len >> 32) & 0xFF);
+            frame[6] = (char) ((data_len >> 24) & 0xFF);
+            frame[7] = (char) ((data_len >> 16) & 0xFF);
+            frame[8] = (char) ((data_len >> 8) & 0xFF);
+            frame[9] = (char) ((data_len) & 0xFF);
+            body_offset = 10;
+        }
+        if (flags & 0x20) {
+            if (mask != NULL) {
+                memcpy(&frame[body_offset], mask, 4);
+            }
+            ws_decode(&frame[body_offset + 4], data, data_len, &frame[body_offset], 0);
+            body_offset += 4;
+        } else {
+            memcpy(&frame[body_offset], data, data_len);
+        }
+
+        return body_offset + data_len;
+    }
+
+    int ws_encode_frame(const std::string& inMessage, std::string &outFrame, enum WS_FrameType frameType) {
+        size_t frame_size = ws_calc_frame_size(frameType, inMessage.size());
+        char frame[frame_size];
+        memset(frame, 0, frame_size);
+        size_t len = ws_build_frame(frame, (WS_FrameType) (frameType | 0x10), NULL, inMessage.c_str(), inMessage.size());
+        outFrame.assign(frame, len);
+        return frameType;
+    }
+
 }
 
 #endif /* WEBSOCKET_HPP */

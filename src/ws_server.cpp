@@ -1,10 +1,6 @@
 #include "ws_server.hpp"
-//#include "lib/libwshandshake.hpp"
-//#include "lib/WebSocket.h"
 #include "lib/websocket.hpp"
-//#include "lib/json11.hpp"
 #include "util.hpp"
-
 #include <algorithm>
 #include <vector>
 #include <sstream>
@@ -145,7 +141,7 @@ namespace mongols {
 
             if (wsft == WS_TEXT_FRAME) {
                 f(message, keepalive, send_to_other, g_u_id, send_to_other_filter);
-                response = input;
+                ws_encode_frame(message,response,WS_TEXT_FRAME);
                 goto ws_done;
             } else if (wsft == WS_BINARY_FRAME) {
                 ws_encode_frame(binary_msg, response, WS_TEXT_FRAME);
