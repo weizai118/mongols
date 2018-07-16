@@ -38,6 +38,11 @@ namespace mongols {
                 , bool&
                 , std::pair<size_t, size_t>&
                 , tcp_server::filter_handler_function&);
+        std::string ws_json_parse(const std::string& message
+                , bool& keepalive
+                , bool& send_to_other
+                , std::pair<size_t, size_t>& g_u_id
+                , tcp_server::filter_handler_function& send_to_other_filter);
     private:
         mongols::tcp_threading_server server;
 
