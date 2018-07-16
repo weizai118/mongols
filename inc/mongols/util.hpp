@@ -34,6 +34,7 @@ namespace mongols {
     void parse_param(const std::string& data, std::unordered_map<std::string, std::string>& result, char c = '&', char cc = '=');
 
     void split(const std::string& s, char delim, std::vector<std::string>& v);
+    void split(const std::string& s, const std::string& delim, std::vector<std::string>& v);
 
     class random {
     public:
