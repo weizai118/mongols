@@ -102,14 +102,14 @@ namespace mongols {
         ret = opcode;
         if (opcode == WS_TEXT_FRAME) {
             payloadLength = static_cast<uint16_t> (frameData[1] & 0x7f);
-//            if (payloadLength == 0x7e) {
+            if (payloadLength == 0x7e) {
                 uint16_t payloadLength16b = 0;
                 payloadFieldExtraBytes = 2;
                 memcpy(&payloadLength16b, &frameData[2], payloadFieldExtraBytes);
                 payloadLength = ntohs(payloadLength16b);
-//            } else if (payloadLength == 0x7f) {
-//                ret = WS_ERROR_FRAME;
-//            }
+            } else if (payloadLength == 0x7f) {
+                ret = WS_ERROR_FRAME;
+            }
         }
 
         if ((ret != WS_ERROR_FRAME) && (payloadLength > 0)) {
