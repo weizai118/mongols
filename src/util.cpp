@@ -364,11 +364,28 @@ namespace mongols {
             return;
         }
         while (pos != std::string::npos) {
-            v.push_back(s.substr(i, pos - i));
+            v.push_back(std::move(s.substr(i, pos - i)));
             i = ++pos;
             pos = s.find(delim, pos);
             if (pos == std::string::npos)
-                v.push_back(s.substr(i, s.length()));
+                v.push_back(std::move(s.substr(i)));
+        }
+    }
+
+    void split(const std::string& s, const std::string& delim, std::vector<std::string>& v) {
+        auto i = 0;
+        auto pos = s.find(delim);
+        if (pos == std::string::npos) {
+            v.push_back(s);
+            return;
+        }
+        size_t delim_size = delim.size();
+        while (pos != std::string::npos) {
+            v.push_back(s.substr(i, pos - i));
+            i = pos + delim_size;
+            pos = s.find(delim, pos);
+            if (pos == std::string::npos)
+                v.push_back(std::move(s.substr(i)));
         }
     }
 
