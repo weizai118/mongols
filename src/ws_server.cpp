@@ -1,6 +1,6 @@
 #include "ws_server.hpp"
 #include "lib/websocket.hpp"
-#include "util.hpp"
+#include "lib/json11.hpp"
 #include <algorithm>
 #include <vector>
 #include <sstream>
@@ -45,69 +45,59 @@ namespace mongols {
             , bool& send_to_other
             , std::pair<size_t, size_t>& g_u_id
             , tcp_server::filter_handler_function& send_to_other_filter) {
-        std::istringstream stream(message.c_str());
-        std::string tmp, k, v;
-        std::string::size_type pos = 0;
-        keepalive = KEEPALIVE_CONNECTION;
-        send_to_other = true;
-        std::vector<size_t> gfilter, ufilter;
-        int n = 0;
-        while (n != 4 && std::getline(stream, tmp) && tmp != "\r\n") {
-            pos = tmp.find(": ");
-            if (pos != std::string::npos) {
-                k = std::move(tmp.substr(0, pos));
-                v = std::move(tmp.substr(pos + 2, tmp.size() - 2 - pos));
-                try {
-                    if (k == "uid") {
-                        if (g_u_id.second == 0) {
-                            g_u_id.second = std::stoul(v);
-                        }
-                        ++n;
-                    } else if (k == "gid") {
-                        if (g_u_id.first == 0) {
-                            g_u_id.first = std::stoul(v);
-                        }
-                        ++n;
-                    } else if (k == "ufilter") {
-                        std::vector<std::string> utmp;
-                        split(v, ',', utmp);
-                        for (auto& i : utmp) {
-                            ufilter.push_back(std::stoul(i));
-                        }
-                        ++n;
-                    } else if (k == "gfilter") {
-                        std::vector<std::string> gtmp;
-                        split(v, ',', gtmp);
-                        for (auto& i : gtmp) {
-                            gfilter.push_back(std::stoul(i));
-                        }
-                        ++n;
-                    }
-                } catch (...) {
 
-                }
-            }
-        }
-
-        send_to_other_filter = [ = ](const std::pair<size_t, size_t>& cur_g_u_id){
-            bool res = false;
-            if (gfilter.empty()) {
-                if (ufilter.empty()) {
-                    res = true;
-                } else {
-                    res = std::find(ufilter.begin(), ufilter.end(), cur_g_u_id.second) != ufilter.end();
-                }
+        std::string err;
+        json11::Json root = json11::Json::parse(message, err);
+        if (err.empty()) {
+            if (!root["uid"].is_number()
+                    || !root["gid"].is_number()
+                    || !root["gfilter"].is_array()
+                    || !root["ufilter"].is_array()) {
             } else {
-                if (ufilter.empty()) {
-                    res = std::find(gfilter.begin(), gfilter.end(), cur_g_u_id.first) != gfilter.end();
-                } else {
-                    res = std::find(gfilter.begin(), gfilter.end(), cur_g_u_id.first) != gfilter.end()
-                            && std::find(ufilter.begin(), ufilter.end(), cur_g_u_id.second) != ufilter.end();
+                if (g_u_id.first == 0) {
+                    g_u_id.first = root["gid"].int_value();
                 }
-            }
-            return res;
+                if (g_u_id.second == 0) {
+                    g_u_id.second = root["uid"].int_value();
+                }
+                keepalive = KEEPALIVE_CONNECTION;
+                send_to_other = true;
+                std::vector<size_t> gfilter, ufilter;
+                for (auto &i : root["gfilter"].array_items()) {
+                    if (i.is_number()) {
+                        gfilter.push_back(i.int_value());
+                    }
+                }
+                for (auto &i : root["ufilter"].array_items()) {
+                    if (i.is_number()) {
+                        ufilter.push_back(i.int_value());
+                    }
+                }
+                send_to_other_filter = [ = ](const std::pair<size_t, size_t>& cur_g_u_id){
+                    bool res = false;
+                    if (gfilter.empty()) {
+                        if (ufilter.empty()) {
+                            res = true;
+                        } else {
+                            res = std::find(ufilter.begin(), ufilter.end(), cur_g_u_id.second) != ufilter.end();
+                        }
+                    } else {
+                        if (ufilter.empty()) {
+                            res = std::find(gfilter.begin(), gfilter.end(), cur_g_u_id.first) != gfilter.end();
+                        } else {
+                            res = std::find(gfilter.begin(), gfilter.end(), cur_g_u_id.first) != gfilter.end()
+                                    && std::find(ufilter.begin(), ufilter.end(), cur_g_u_id.second) != ufilter.end();
+                        }
+                    }
+                    return res;
 
-        };
+                };
+                return message;
+            }
+        } else {
+            keepalive = CLOSE_CONNECTION;
+            send_to_other = false;
+        }
 
         return message;
     }
@@ -141,7 +131,7 @@ namespace mongols {
 
             if (wsft == WS_TEXT_FRAME) {
                 f(message, keepalive, send_to_other, g_u_id, send_to_other_filter);
-                ws_encode_frame(message,response,WS_TEXT_FRAME);
+                ws_encode_frame(message, response, WS_TEXT_FRAME);
                 goto ws_done;
             } else if (wsft == WS_BINARY_FRAME) {
                 ws_encode_frame(binary_msg, response, WS_TEXT_FRAME);
