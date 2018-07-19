@@ -124,7 +124,11 @@ namespace mongols {
         if (fd > 0) {
             char buffer[this->buffer_size];
             ssize_t ret = recv(fd, buffer, this->buffer_size, MSG_WAITALL);
-            if (ret >= 0) {
+            if (ret == -1) {
+                if (errno == EAGAIN) {
+                    return false;
+                }
+            } else if (ret > 0) {
                 std::string input = std::move(std::string(buffer, ret));
                 filter_handler_function send_to_other_filter = [](const std::pair<size_t, size_t>&) {
                     return true;

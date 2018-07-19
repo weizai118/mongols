@@ -1,12 +1,101 @@
-#include "ws_server.hpp"
-#include "lib/websocket.hpp"
-#include "lib/json11.hpp"
 #include <algorithm>
 #include <vector>
 #include <sstream>
+#include <string>
+#include <cstdlib>
+#include <cstring>
+
+#include "ws_server.hpp"
+#include "lib/websocket_parser.h"
+#include "lib/libwshandshake.hpp"
+#include "lib/json11.hpp"
+
+
+
 
 
 namespace mongols {
+
+    ws_threading_server::ws_threading_server(const std::string& host, int port, int timeout, size_t buffer_size, size_t thread_size, int max_event_size)
+    : tcp_threading_server(host, port, timeout, buffer_size, thread_size, max_event_size) {
+
+    }
+
+    bool ws_threading_server::check_finished(const std::string& temp_input, std::string& input) {
+        if (temp_input[0] == 'G') {
+            return tcp_threading_server::check_finished(temp_input, input);
+        }
+
+        struct ws_frame_t {
+            websocket_flags opcode, is_final;
+            char* body;
+            size_t len;
+            std::string* message;
+        };
+        ws_frame_t ws_frame;
+        ws_frame.message = &input;
+
+        websocket_parser_settings ws_settings;
+        websocket_parser_settings_init(&ws_settings);
+
+        ws_settings.on_frame_header = [](websocket_parser * parser) {
+            ws_frame_t* THIS = (ws_frame_t*) parser->data;
+            THIS->opcode = (websocket_flags) (parser->flags & WS_OP_MASK);
+            THIS->is_final = (websocket_flags) (parser->flags & WS_FIN);
+            if (parser->length) {
+                THIS->body = (char*) malloc(parser->length);
+                THIS->len = parser->length;
+            }
+            return 0;
+        };
+        ws_settings.on_frame_end = [](websocket_parser * parser) {
+            ws_frame_t* THIS = (ws_frame_t*) parser->data;
+            THIS->message->append(THIS->body, THIS->len);
+            free(THIS->body);
+            return 0;
+        };
+
+        ws_settings.on_frame_body = [](websocket_parser * parser, const char *at, size_t length) {
+            ws_frame_t* THIS = (ws_frame_t*) parser->data;
+            if (parser->flags & WS_HAS_MASK) {
+                websocket_parser_decode(&THIS->body[parser->offset], at, length, parser);
+            } else {
+                memcpy(&THIS->body[parser->offset], at, length);
+
+            }
+            return 0;
+        };
+
+
+        websocket_parser ws_parser;
+        websocket_parser_init(&ws_parser);
+        ws_parser.data = &ws_frame;
+
+        size_t nread = websocket_parser_execute(&ws_parser, &ws_settings, temp_input.c_str(), temp_input.size());
+
+        if (nread != temp_input.size()) {
+            input.push_back('0');
+            return true;
+        }
+
+        if (ws_frame.is_final == WS_FIN) {
+            if (ws_frame.opcode == WS_OP_TEXT) {
+                input.push_back('1');
+            } else if (ws_frame.opcode == WS_OP_BINARY) {
+                input.push_back('2');
+            } else if (ws_frame.opcode == WS_OP_PING) {
+                input.push_back('9');
+            } else if (ws_frame.opcode == WS_OP_CLOSE) {
+                input.push_back('8');
+            } else {
+                input.push_back('0');
+            }
+            return true;
+        }
+        return false;
+
+
+    }
 
     ws_server::ws_server(const std::string& host, int port, int timeout
             , size_t buffer_size, size_t thread_size, int max_event_size)
@@ -113,46 +202,172 @@ namespace mongols {
 
         if (input[0] == 'G') {
 
-            if (ws_handshake(input, response) == WS_STATUS_CONNECT) {
-
-            } else {
-                response = "";
+            if (!this->ws_handshake(input, response)) {
                 keepalive = CLOSE_CONNECTION;
             }
             goto ws_done;
         } else {
 
-            const std::string close_msg = "connection closed.", empty_msg, error_msg = "error message."
-                    , binary_msg = "not accept binary message.";
-            std::string message;
-
-            auto wsft = (WS_FrameType) ws_decode_frame(input, message);
+            std::string close_msg = "connection closed.", pong_msg = "pong", error_msg = "error message."
+                    , binary_msg = "not accept binary message.", message;
 
 
-            if (wsft == WS_TEXT_FRAME) {
+            message.assign(input.c_str(), input.size() - 1);
+            char a = input.back();
+            if (a == '1') {
                 f(message, keepalive, send_to_other, g_u_id, send_to_other_filter);
-                ws_encode_frame(message, response, WS_TEXT_FRAME);
-                goto ws_done;
-            } else if (wsft == WS_BINARY_FRAME) {
-                ws_encode_frame(binary_msg, response, WS_TEXT_FRAME);
-                goto ws_done;
-            } else if (wsft == WS_PONG_FRAME) {
-                ws_encode_frame(empty_msg, response, WS_PING_FRAME);
-                goto ws_done;
-            } else if (wsft == WS_PING_FRAME) {
-                ws_encode_frame(empty_msg, response, WS_PONG_FRAME);
-                goto ws_done;
-            } else {
-                ws_encode_frame(close_msg, response, WS_CLOSING_FRAME);
+                size_t frame_len = websocket_calc_frame_size((websocket_flags) (WS_OP_TEXT | WS_FINAL_FRAME), message.size());
+                char * frame = (char*) malloc(sizeof (char) * frame_len);
+                frame_len = websocket_build_frame(frame, (websocket_flags) (WS_OP_TEXT | WS_FINAL_FRAME), NULL, message.c_str(), message.size());
+                response.assign(frame, frame_len);
+                free(frame);
+            } else if (a == '2') {
+                size_t frame_len = websocket_calc_frame_size((websocket_flags) (WS_OP_BINARY | WS_FINAL_FRAME), message.size());
+                char * frame = (char*) malloc(sizeof (char) * frame_len);
+                frame_len = websocket_build_frame(frame, (websocket_flags) (WS_OP_BINARY | WS_FINAL_FRAME), NULL, message.c_str(), message.size());
+                response.assign(frame, frame_len);
+                free(frame);
+                send_to_other = true;
+            } else if (a == '8') {
+                size_t frame_len = websocket_calc_frame_size((websocket_flags) (WS_OP_CLOSE | WS_FINAL_FRAME), close_msg.size());
+                char * frame = (char*) malloc(sizeof (char) * frame_len);
+                frame_len = websocket_build_frame(frame, (websocket_flags) (WS_OP_CLOSE | WS_FINAL_FRAME), NULL, close_msg.c_str(), close_msg.size());
+                response.assign(frame, frame_len);
+                free(frame);
+                keepalive = CLOSE_CONNECTION;
+
+            } else if (a == '9') {
+                size_t frame_len = websocket_calc_frame_size((websocket_flags) (WS_OP_PONG | WS_FINAL_FRAME), pong_msg.size());
+                char * frame = (char*) malloc(sizeof (char) * frame_len);
+                frame_len = websocket_build_frame(frame, (websocket_flags) (WS_OP_PONG | WS_FINAL_FRAME), NULL, pong_msg.c_str(), pong_msg.size());
+                response.assign(frame, frame_len);
+                free(frame);
+            } else if (a == '0') {
+                size_t frame_len = websocket_calc_frame_size((websocket_flags) (WS_OP_TEXT | WS_FINAL_FRAME), error_msg.size());
+                char * frame = (char*) malloc(sizeof (char) * frame_len);
+                frame_len = websocket_build_frame(frame, (websocket_flags) (WS_OP_TEXT | WS_FINAL_FRAME), NULL, error_msg.c_str(), error_msg.size());
+                response.assign(frame, frame_len);
+                free(frame);
+                keepalive = CLOSE_CONNECTION;
+                send_to_other = false;
+            }
+
+            /*struct ws_frame_t {
+                websocket_flags opcode, is_final;
+                char* body;
+                size_t len;
+                std::string message;
+            };
+            ws_frame_t ws_frame;
+
+            websocket_parser_settings ws_settings;
+            websocket_parser_settings_init(&ws_settings);
+
+            ws_settings.on_frame_header = [](websocket_parser * parser) {
+                ws_frame_t* THIS = (ws_frame_t*) parser->data;
+                THIS->opcode = (websocket_flags) (parser->flags & WS_OP_MASK);
+                THIS->is_final = (websocket_flags) (parser->flags & WS_FIN);
+                if (parser->length) {
+                    THIS->body = (char*) malloc(parser->length);
+                    THIS->len = parser->length;
+                }
+                return 0;
+            };
+            ws_settings.on_frame_end = [](websocket_parser * parser) {
+                ws_frame_t* THIS = (ws_frame_t*) parser->data;
+                THIS->message.assign(THIS->body, THIS->len);
+                free(THIS->body);
+                return 0;
+            };
+
+            ws_settings.on_frame_body = [](websocket_parser * parser, const char *at, size_t length) {
+                ws_frame_t* THIS = (ws_frame_t*) parser->data;
+                if (parser->flags & WS_HAS_MASK) {
+                    websocket_parser_decode(&THIS->body[parser->offset], at, length, parser);
+                } else {
+                    memcpy(&THIS->body[parser->offset], at, length);
+
+                }
+                return 0;
+            };
+
+
+            websocket_parser ws_parser;
+            websocket_parser_init(&ws_parser);
+            ws_parser.data = &ws_frame;
+
+            size_t nread = websocket_parser_execute(&ws_parser, &ws_settings, input.c_str(), input.size());
+            if (nread != input.size()) {
                 keepalive = CLOSE_CONNECTION;
                 goto ws_done;
             }
-        }
+            if (ws_frame.opcode == WS_OP_TEXT || ws_frame.opcode == WS_OP_BINARY) {
+                if (ws_frame.opcode == WS_OP_TEXT) {
+                    f(ws_frame.message, keepalive, send_to_other, g_u_id, send_to_other_filter);
+                }
+                size_t frame_len = websocket_calc_frame_size((websocket_flags) (ws_frame.opcode | WS_FINAL_FRAME), ws_frame.message.size());
+                char * frame = (char*) malloc(sizeof (char) * frame_len);
+                websocket_build_frame(frame, (websocket_flags) (ws_frame.opcode | WS_FINAL_FRAME), NULL, ws_frame.message.c_str(), ws_frame.message.size());
+                response.assign(frame, frame_len);
+                free(frame);
+            } else if (ws_frame.opcode == WS_OP_PING) {
+                size_t frame_len = websocket_calc_frame_size((websocket_flags) (ws_frame.opcode | WS_OP_PONG | WS_FINAL_FRAME), pong_msg.size());
+                char * frame = (char*) malloc(sizeof (char) * frame_len);
+                websocket_build_frame(frame, (websocket_flags) (WS_OP_PONG | WS_FINAL_FRAME), NULL, pong_msg.c_str(), pong_msg.size());
+                response.assign(frame, frame_len);
+                free(frame);
+            }*/
 
+        }
 ws_done:
         return std::make_pair(std::move(response), keepalive);
     }
 
+    bool ws_server::ws_handshake(const std::string& request, std::string& response) {
+        bool ret = false;
+        std::istringstream stream(request.c_str());
+        std::string reqType;
+        std::getline(stream, reqType);
+        if (reqType.substr(0, 4) != "GET ") {
+            return ret;
+        }
+
+        std::string header;
+        std::string::size_type pos = 0;
+        std::string websocketKey;
+        while (std::getline(stream, header) && header != "\r") {
+            header.erase(header.end() - 1);
+            pos = header.find(": ", 0);
+            if (pos != std::string::npos) {
+                std::string key = header.substr(0, pos);
+                std::string value = header.substr(pos + 2);
+                if (key == "Sec-WebSocket-Key") {
+                    ret = true;
+                    websocketKey = value;
+                    break;
+                }
+            }
+        }
+
+        if (!ret) {
+            return ret;
+        }
+
+        response = "HTTP/1.1 101 Switching Protocols\r\n";
+        response += "Upgrade: websocket\r\n";
+        response += "Connection: upgrade\r\n";
+        response += "Sec-WebSocket-Accept: ";
+
+
+
+        char output[29] = {};
+        WebSocketHandshake::generate(websocketKey.c_str(), output);
+        std::string serverKey = std::move(output);
+        serverKey += "\r\n\r\n";
+        response += serverKey;
+
+        return ret;
+    }
 
 
 }

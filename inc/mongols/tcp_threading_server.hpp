@@ -24,6 +24,7 @@ namespace mongols {
         void process(int, const handler_function&);
         bool send_to_all_client(int, const std::string&, const filter_handler_function&);
         bool work(int, const handler_function&);
+        virtual bool check_finished(const std::string&,std::string&);
 
     private:
 
