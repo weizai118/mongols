@@ -10,6 +10,7 @@
 #include "util.hpp"
 #include "MPFDParser/Parser.h"
 
+#define mongols_http_server_version "mongols/0.9.0"
 #define form_urlencoded_type "application/x-www-form-urlencoded"
 #define form_urlencoded_type_len (sizeof(form_urlencoded_type) - 1)
 #define TEMP_DIRECTORY "temp"
@@ -155,7 +156,7 @@ namespace mongols {
     std::string http_server::create_response(mongols::response& res, bool b) {
         std::string output;
         output.append("HTTP/1.1 ").append(std::to_string(res.status)).append(" " + this->get_status_text(res.status)).append("\r\n");
-        res.headers.insert(std::make_pair("Server", "mongols/0.1.0"));
+        res.headers.insert(std::make_pair("Server", mongols_http_server_version));
         if (b == KEEPALIVE_CONNECTION) {
             res.headers.insert(std::move(std::make_pair("Connection", "keep-alive")));
         } else {
