@@ -92,7 +92,7 @@ namespace mongols {
                 ret = recv(fd, buffer, this->buffer_size, MSG_WAITALL);
                 if (ret == -1) {
                     if (errno == EAGAIN) {
-                        continue;
+                        return false;
                     }
                 } else if (ret > 0) {
                     try {
