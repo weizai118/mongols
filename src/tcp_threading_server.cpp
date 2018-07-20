@@ -92,13 +92,13 @@ namespace mongols {
                 ret = recv(fd, buffer, this->buffer_size, MSG_WAITALL);
                 if (ret == -1) {
                     if (errno == EAGAIN) {
-                        return false;
+                        continue;
                     }
                 } else if (ret > 0) {
                     try {
                         temp_input.assign(buffer, ret);
                     } catch (const std::length_error& e) {
-                        temp_input = e.what();
+                        input = e.what();
                         break;
                     }
                 } else {
