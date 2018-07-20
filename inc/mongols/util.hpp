@@ -30,6 +30,7 @@ namespace mongols {
     time_t parse_http_time(u_char* value, size_t len);
 
     std::string trim(const std::string& s);
+    void trim(std::string& s);
 
     void parse_param(const std::string& data, std::unordered_map<std::string, std::string>& result, char c = '&', char cc = '=');
 

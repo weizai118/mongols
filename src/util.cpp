@@ -323,16 +323,17 @@ namespace mongols {
         return (time_t) time;
     }
 
+    void trim(std::string& s) {
+        if (!s.empty()) {
+            s.erase(0, s.find_first_not_of(" "));
+            s.erase(s.find_last_not_of(" ") + 1);
+        }
+    }
+
     std::string trim(const std::string& s) {
-        auto it = s.begin();
-        while (it != s.end() && isspace(*it)) {
-            it++;
-        }
-        auto rit = s.rbegin();
-        while (rit.base() != it && isspace(*rit)) {
-            rit++;
-        }
-        return std::string(it, rit.base());
+        std::string ret(s);
+        trim(ret);
+        return ret;
     }
 
     void parse_param(const std::string& data, std::unordered_map<std::string, std::string>& result, char c, char cc) {
@@ -369,15 +370,15 @@ namespace mongols {
     }
 
     void split(const std::string& s, const std::string& delim, std::vector<std::string>& v) {
-        auto i = 0;
-        auto pos = s.find(delim);
-        size_t delim_size = delim.size();
-        while (pos != std::string::npos) {
-            v.push_back(s.substr(i, pos - i));
-            i = pos + delim_size;
-            pos = s.find(delim, pos);
-            if (pos == std::string::npos)
-                v.push_back(std::move(s.substr(i)));
+        size_t last = 0;
+        size_t index = s.find_first_of(delim, last);
+        while (index != std::string::npos) {
+            v.push_back(s.substr(last, index - last));
+            last = index + 1;
+            index = s.find_first_of(delim, last);
+        }
+        if (index - last > 0) {
+            v.push_back(s.substr(last, index - last));
         }
     }
 
