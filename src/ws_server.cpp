@@ -25,6 +25,10 @@ namespace mongols {
         if (temp_input[0] == 'G') {
             return tcp_threading_server::check_finished(temp_input, input);
         }
+        if(temp_input.empty()){
+            input.push_back('0');
+            return true;
+        }
 
         struct ws_frame_t {
             websocket_flags opcode, is_final;

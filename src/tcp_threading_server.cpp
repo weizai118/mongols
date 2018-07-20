@@ -87,24 +87,23 @@ namespace mongols {
         if (fd > 0) {
             std::string input, temp_input;
             size_t ret;
-            do {
+            bool recv_stop = false;
+            while (!recv_stop) {
                 char buffer[this->buffer_size];
                 ret = recv(fd, buffer, this->buffer_size, MSG_WAITALL);
                 if (ret == -1) {
                     if (errno == EAGAIN) {
-                        return false;
                     }
                 } else if (ret > 0) {
                     try {
                         temp_input.assign(buffer, ret);
                     } catch (const std::length_error& e) {
-                        input = e.what();
-                        break;
+
                     }
                 } else {
-                    break;
                 }
-            } while (!this->check_finished(temp_input, input));
+                recv_stop = this->check_finished(temp_input, input);
+            }
 
             if (ret > 0) {
                 filter_handler_function send_to_other_filter = [](const std::pair<size_t, size_t>&) {
@@ -143,7 +142,9 @@ ev_error:
     }
 
     bool tcp_threading_server::check_finished(const std::string& temp_input, std::string& input) {
-        input.append(temp_input);
+        if (!temp_input.empty()) {
+            input.append(temp_input);
+        }
         return true;
     }
 
