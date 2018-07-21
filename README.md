@@ -20,7 +20,7 @@ or
 - http server (epoll)
 - http multi-threading server (epoll+multi-threading)
 - websocket server
-- uitls
+- utils
 
 ## install 
 
