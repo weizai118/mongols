@@ -209,3 +209,7 @@ Percentage of the requests served within a certain time (ms)
 
 
 ```
+
+## chat
+
+[http://fusheng.hi-nginx.com](http://fusheng.hi-nginx.com)
