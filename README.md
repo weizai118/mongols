@@ -25,7 +25,7 @@ or
 
 ## install 
 
-`make clean && make -j2 && sudo make install`
+`make clean && make -j2 && sudo make install && sudo ldconfig`
 
 ## usage
 
