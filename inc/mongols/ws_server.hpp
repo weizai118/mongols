@@ -7,20 +7,6 @@
 
 namespace mongols {
 
-    class ws_threading_server : public tcp_threading_server {
-    public:
-        ws_threading_server()=delete;
-        ws_threading_server(const std::string& host, int port
-                , int timeout = 5000
-                , size_t buffer_size = 1024
-                , size_t thread_size = std::thread::hardware_concurrency()
-                , int max_event_size = 64);
-        
-        
-    protected:
-        virtual bool check_finished(const std::string&, std::string&);
-    };
-
     class ws_server {
     public:
         typedef std::function<std::string(
@@ -58,8 +44,9 @@ namespace mongols {
                 , std::pair<size_t, size_t>& g_u_id
                 , tcp_server::filter_handler_function& send_to_other_filter);
         bool ws_handshake(const std::string &request, std::string &response);
+        int ws_parse(const std::string& frame,std::string& message);
     private:
-        mongols::ws_threading_server server;
+        mongols::tcp_threading_server server;
 
     };
 }

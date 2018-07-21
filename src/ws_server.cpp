@@ -16,91 +16,6 @@
 
 namespace mongols {
 
-    ws_threading_server::ws_threading_server(const std::string& host, int port, int timeout, size_t buffer_size, size_t thread_size, int max_event_size)
-    : tcp_threading_server(host, port, timeout, buffer_size, thread_size, max_event_size) {
-
-    }
-
-    bool ws_threading_server::check_finished(const std::string& temp_input, std::string& input) {
-        if (temp_input[0] == 'G') {
-            return tcp_threading_server::check_finished(temp_input, input);
-        }
-        if(temp_input.empty()){
-            input.push_back('0');
-            return true;
-        }
-
-        struct ws_frame_t {
-            websocket_flags opcode, is_final;
-            char* body;
-            size_t len;
-            std::string* message;
-        };
-        ws_frame_t ws_frame;
-        ws_frame.message = &input;
-
-        websocket_parser_settings ws_settings;
-        websocket_parser_settings_init(&ws_settings);
-
-        ws_settings.on_frame_header = [](websocket_parser * parser) {
-            ws_frame_t* THIS = (ws_frame_t*) parser->data;
-            THIS->opcode = (websocket_flags) (parser->flags & WS_OP_MASK);
-            THIS->is_final = (websocket_flags) (parser->flags & WS_FIN);
-            if (parser->length) {
-                THIS->body = (char*) malloc(parser->length);
-                THIS->len = parser->length;
-            }
-            return 0;
-        };
-        ws_settings.on_frame_end = [](websocket_parser * parser) {
-            ws_frame_t* THIS = (ws_frame_t*) parser->data;
-            THIS->message->append(THIS->body, THIS->len);
-            free(THIS->body);
-            return 0;
-        };
-
-        ws_settings.on_frame_body = [](websocket_parser * parser, const char *at, size_t length) {
-            ws_frame_t* THIS = (ws_frame_t*) parser->data;
-            if (parser->flags & WS_HAS_MASK) {
-                websocket_parser_decode(&THIS->body[parser->offset], at, length, parser);
-            } else {
-                memcpy(&THIS->body[parser->offset], at, length);
-
-            }
-            return 0;
-        };
-
-
-        websocket_parser ws_parser;
-        websocket_parser_init(&ws_parser);
-        ws_parser.data = &ws_frame;
-
-        size_t nread = websocket_parser_execute(&ws_parser, &ws_settings, temp_input.c_str(), temp_input.size());
-
-        if (nread != temp_input.size()) {
-            input.push_back('0');
-            return true;
-        }
-
-        if (ws_frame.is_final == WS_FIN) {
-            if (ws_frame.opcode == WS_OP_TEXT) {
-                input.push_back('1');
-            } else if (ws_frame.opcode == WS_OP_BINARY) {
-                input.push_back('2');
-            } else if (ws_frame.opcode == WS_OP_PING) {
-                input.push_back('9');
-            } else if (ws_frame.opcode == WS_OP_CLOSE) {
-                input.push_back('8');
-            } else {
-                input.push_back('0');
-            }
-            return true;
-        }
-        return false;
-
-
-    }
-
     ws_server::ws_server(const std::string& host, int port, int timeout
             , size_t buffer_size, size_t thread_size, int max_event_size)
     : server(host, port, timeout, buffer_size, thread_size, max_event_size) {
@@ -215,24 +130,24 @@ namespace mongols {
             std::string close_msg = "connection closed.", pong_msg = "pong", error_msg = "error message."
                     , binary_msg = "not accept binary message.", message;
 
+            int ret = this->ws_parse(input, message);
 
-            message.assign(input.c_str(), input.size() - 1);
-            char a = input.back();
-            if (a == '1') {
+
+            if (ret == 1) {
                 f(message, keepalive, send_to_other, g_u_id, send_to_other_filter);
                 size_t frame_len = websocket_calc_frame_size((websocket_flags) (WS_OP_TEXT | WS_FINAL_FRAME), message.size());
                 char * frame = (char*) malloc(sizeof (char) * frame_len);
                 frame_len = websocket_build_frame(frame, (websocket_flags) (WS_OP_TEXT | WS_FINAL_FRAME), NULL, message.c_str(), message.size());
                 response.assign(frame, frame_len);
                 free(frame);
-            } else if (a == '2') {
+            } else if (ret == 2) {
                 size_t frame_len = websocket_calc_frame_size((websocket_flags) (WS_OP_BINARY | WS_FINAL_FRAME), message.size());
                 char * frame = (char*) malloc(sizeof (char) * frame_len);
                 frame_len = websocket_build_frame(frame, (websocket_flags) (WS_OP_BINARY | WS_FINAL_FRAME), NULL, message.c_str(), message.size());
                 response.assign(frame, frame_len);
                 free(frame);
                 send_to_other = true;
-            } else if (a == '8') {
+            } else if (ret == 8) {
                 size_t frame_len = websocket_calc_frame_size((websocket_flags) (WS_OP_CLOSE | WS_FINAL_FRAME), close_msg.size());
                 char * frame = (char*) malloc(sizeof (char) * frame_len);
                 frame_len = websocket_build_frame(frame, (websocket_flags) (WS_OP_CLOSE | WS_FINAL_FRAME), NULL, close_msg.c_str(), close_msg.size());
@@ -240,13 +155,13 @@ namespace mongols {
                 free(frame);
                 keepalive = CLOSE_CONNECTION;
 
-            } else if (a == '9') {
+            } else if (ret == 9) {
                 size_t frame_len = websocket_calc_frame_size((websocket_flags) (WS_OP_PONG | WS_FINAL_FRAME), pong_msg.size());
                 char * frame = (char*) malloc(sizeof (char) * frame_len);
                 frame_len = websocket_build_frame(frame, (websocket_flags) (WS_OP_PONG | WS_FINAL_FRAME), NULL, pong_msg.c_str(), pong_msg.size());
                 response.assign(frame, frame_len);
                 free(frame);
-            } else if (a == '0') {
+            } else if (ret == 0) {
                 size_t frame_len = websocket_calc_frame_size((websocket_flags) (WS_OP_TEXT | WS_FINAL_FRAME), error_msg.size());
                 char * frame = (char*) malloc(sizeof (char) * frame_len);
                 frame_len = websocket_build_frame(frame, (websocket_flags) (WS_OP_TEXT | WS_FINAL_FRAME), NULL, error_msg.c_str(), error_msg.size());
@@ -305,6 +220,80 @@ ws_done:
 
         return ret;
     }
+
+    int ws_server::ws_parse(const std::string& frame, std::string& message) {
+
+        if (frame.empty()) {
+            return 0;
+        }
+
+        struct ws_frame_t {
+            websocket_flags opcode, is_final;
+            char* body;
+            size_t len;
+            std::string* message;
+        };
+        ws_frame_t ws_frame;
+        ws_frame.message = &message;
+
+        websocket_parser_settings ws_settings;
+        websocket_parser_settings_init(&ws_settings);
+
+        ws_settings.on_frame_header = [](websocket_parser * parser) {
+            ws_frame_t* THIS = (ws_frame_t*) parser->data;
+            THIS->opcode = (websocket_flags) (parser->flags & WS_OP_MASK);
+            THIS->is_final = (websocket_flags) (parser->flags & WS_FIN);
+            if (parser->length) {
+                THIS->body = (char*) malloc(parser->length);
+                THIS->len = parser->length;
+            }
+            return 0;
+        };
+        ws_settings.on_frame_end = [](websocket_parser * parser) {
+            ws_frame_t* THIS = (ws_frame_t*) parser->data;
+            THIS->message->append(THIS->body, THIS->len);
+            free(THIS->body);
+            return 0;
+        };
+
+        ws_settings.on_frame_body = [](websocket_parser * parser, const char *at, size_t length) {
+            ws_frame_t* THIS = (ws_frame_t*) parser->data;
+            if (parser->flags & WS_HAS_MASK) {
+                websocket_parser_decode(&THIS->body[parser->offset], at, length, parser);
+            } else {
+                memcpy(&THIS->body[parser->offset], at, length);
+
+            }
+            return 0;
+        };
+
+
+        websocket_parser ws_parser;
+        websocket_parser_init(&ws_parser);
+        ws_parser.data = &ws_frame;
+
+        size_t nread = websocket_parser_execute(&ws_parser, &ws_settings, frame.c_str(), frame.size());
+
+        if (nread != frame.size()) {
+            return -1;
+        }
+        int ret = 0;
+        if (ws_frame.is_final == WS_FIN) {
+            if (ws_frame.opcode == WS_OP_TEXT) {
+                ret = 1;
+            } else if (ws_frame.opcode == WS_OP_BINARY) {
+                ret = 2;
+            } else if (ws_frame.opcode == WS_OP_PING) {
+                ret = 9;
+            } else if (ws_frame.opcode == WS_OP_CLOSE) {
+                ret = 8;
+            }
+        }
+        return ret;
+
+
+    }
+
 
 
 }
