@@ -112,7 +112,8 @@ int main(int,char**)
 ## apache benchmark
 
 ```
-
+[centos@localhost demo]$ uname -a
+Linux localhost 3.10.0-862.9.1.el7.x86_64 #1 SMP Mon Jul 16 16:29:36 UTC 2018 x86_64 x86_64 x86_64 GNU/Linux
 [centos@localhost demo]$ cat /proc/cpuinfo| grep "processor"| wc -l
 4
 [centos@localhost demo]$ cat /proc/cpuinfo| grep "cpu cores"| uniq
