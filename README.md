@@ -3,6 +3,7 @@ a library for c/c++
 
 ## dependency
 
+- linux
 - pcre-devel
 - zlib-devel
 - openssl-devel
