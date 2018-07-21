@@ -49,7 +49,7 @@ int main(int,char**){
 	const char* host="127.0.0.1";
 	mongols::ws_server server(host,port);
 
-	auto f=[](const std::string& input
+	/*auto f=[](const std::string& input
             , bool& keepalive
             , bool& send_to_other
             , std::pair<size_t, size_t>& g_u_id
@@ -58,7 +58,7 @@ int main(int,char**){
 			send_to_other=true;
 			return input;
 	};
-	//server.run(f);
+	server.run(f);*/
 	server.run();
 }
 
