@@ -127,7 +127,7 @@ namespace mongols {
             goto ws_done;
         } else {
 
-            std::string close_msg = "connection closed.", pong_msg = "pong", error_msg = "error message."
+            std::string close_msg = "connection closed.", pong_msg = "pong", ping_msg = "ping", error_msg = "error message."
                     , binary_msg = "not accept binary message.", message;
 
             int ret = this->ws_parse(input, message);
@@ -159,6 +159,12 @@ namespace mongols {
                 size_t frame_len = websocket_calc_frame_size((websocket_flags) (WS_OP_PONG | WS_FINAL_FRAME), pong_msg.size());
                 char * frame = (char*) malloc(sizeof (char) * frame_len);
                 frame_len = websocket_build_frame(frame, (websocket_flags) (WS_OP_PONG | WS_FINAL_FRAME), NULL, pong_msg.c_str(), pong_msg.size());
+                response.assign(frame, frame_len);
+                free(frame);
+            } else if (ret == 10) {
+                size_t frame_len = websocket_calc_frame_size((websocket_flags) (WS_OP_PING | WS_FINAL_FRAME), ping_msg.size());
+                char * frame = (char*) malloc(sizeof (char) * frame_len);
+                frame_len = websocket_build_frame(frame, (websocket_flags) (WS_OP_PING | WS_FINAL_FRAME), NULL, ping_msg.c_str(), ping_msg.size());
                 response.assign(frame, frame_len);
                 free(frame);
             } else if (ret == 0) {
@@ -287,6 +293,8 @@ ws_done:
                 ret = 9;
             } else if (ws_frame.opcode == WS_OP_CLOSE) {
                 ret = 8;
+            } else if (ws_frame.opcode == WS_OP_PONG) {
+                ret = 10;
             }
         }
         return ret;
