@@ -156,7 +156,7 @@ namespace mongols {
     std::string http_server::create_response(mongols::response& res, bool b) {
         std::string output;
         output.append("HTTP/1.1 ").append(std::to_string(res.status)).append(" " + this->get_status_text(res.status)).append("\r\n");
-        res.headers.insert(std::make_pair("Server", mongols_http_server_version));
+        res.headers.insert(std::move(std::make_pair("Server", mongols_http_server_version)));
         if (b == KEEPALIVE_CONNECTION) {
             res.headers.insert(std::move(std::make_pair("Connection", "keep-alive")));
         } else {
