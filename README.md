@@ -1,5 +1,5 @@
 # mongols
-a library for c/c++
+a library for c++
 
 ## dependency
 
