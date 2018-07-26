@@ -17,11 +17,11 @@ CXX=g++
 
 CFLAGS+=-O3 -std=c11 -Wall -fPIC 
 CFLAGS+=-Iinc/mongols -Iinc/mongols/lib
-CFLAGS+=`pkg-config --cflags openssl`
+CFLAGS+=`pkg-config --cflags hiredis openssl`
 CXXFLAGS+=-O3 -std=c++11 -Wall -fPIC 
 CXXFLAGS+=-Iinc/mongols -Iinc/mongols/lib -Isrc/MPFDParser
 CXXFLAGS+=`pkg-config --cflags openssl` 
-LDLIBS+=`pkg-config --libs openssl` -lpcre -lz -lpthread -ldl -lrt -lm -lstdc++
+LDLIBS+=`pkg-config --libs hiredis  openssl` -lpcre -lz -lpthread -ldl -lrt -lm -lstdc++
 LDFLAGS+=-shared
 
 

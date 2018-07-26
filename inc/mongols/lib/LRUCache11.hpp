@@ -79,11 +79,11 @@ struct KeyValuePair {
  */
 template <class Key, class Value, class Lock = NullLock,
           class Map = std::unordered_map<
-              Key, typename std::list<KeyValuePair<Key, Value>>::iterator>>
+              Key, typename std::list<KeyValuePair<Key, Value> >::iterator> >
 class Cache {
  public:
   typedef KeyValuePair<Key, Value> node_type;
-  typedef std::list<KeyValuePair<Key, Value>> list_type;
+  typedef std::list<KeyValuePair<Key, Value> > list_type;
   typedef Map map_type;
   typedef Lock lock_type;
   using Guard = std::lock_guard<lock_type>;

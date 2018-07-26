@@ -6,6 +6,8 @@
 #include "tcp_server.hpp"
 #include "servlet.hpp"
 #include "lib/http_parser.h"
+#include "lib/lrucache.hpp"
+#include "lib/redis.hpp"
 
 
 namespace mongols {
@@ -40,6 +42,22 @@ namespace mongols {
 
     class http_server {
     public:
+
+        class cache_t {
+        public:
+            cache_t();
+            cache_t(const std::string&, long long);
+            virtual~cache_t() = default;
+            bool expired()const;
+            const std::string& get()const;
+            cache_t& set_data(const std::string&);
+            cache_t& set_expires(long long);
+        private:
+            std::string data;
+            time_t t;
+            long long expires;
+        };
+    public:
         http_server() = delete;
         http_server(const std::string& host, int port
                 , int timeout = 5000
@@ -52,6 +70,9 @@ namespace mongols {
     public:
         void run(const std::function<bool(const mongols::request&)>& req_filter
                 , const std::function<void(const mongols::request&, mongols::response&)>& res_filter);
+        
+        void set_session_expires(long long);
+        void set_cache_expires(long long);
     private:
         std::pair < std::string, bool> work(
                 const std::function<bool(const mongols::request&)>& req_filter
@@ -69,7 +90,9 @@ namespace mongols {
     private:
         mongols::tcp_server *server;
         size_t max_body_size;
-
+        mongols::cache::lru_cache<std::string, std::unordered_map<std::string,http_server::cache_t> > cache;
+        mongols::redis redis;
+        long long session_expires,cache_expores;
 
 
     };
