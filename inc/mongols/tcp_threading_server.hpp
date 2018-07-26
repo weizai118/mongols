@@ -17,10 +17,6 @@ namespace mongols {
                 , size_t thread_size = std::thread::hardware_concurrency()
                 , int max_event_size = 64);
         virtual~tcp_threading_server();
-    public:
-        virtual std::string get_session(const std::string&);
-        virtual bool find_session(const std::string&);
-        virtual void set_session(const std::string&, const std::string&);
     protected:
 
         virtual void add_client(int);

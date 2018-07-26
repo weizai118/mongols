@@ -34,11 +34,6 @@ namespace mongols {
         virtual~tcp_server() = default;
 
     public:
-        virtual std::string get_session(const std::string&);
-        virtual bool find_session(const std::string&);
-        virtual void set_session(const std::string&, const std::string&);
-
-    public:
         void run(const handler_function&);
 
         size_t get_buffer_size()const;
@@ -56,7 +51,6 @@ namespace mongols {
     protected:
         size_t buffer_size;
         std::unordered_map<int, std::pair<size_t, size_t> > clients;
-        std::unordered_map<int, std::unordered_map<std::string, std::string> > session;
         virtual void add_client(int);
         virtual void del_client(int);
         virtual bool send_to_all_client(int, const std::string&, const filter_handler_function&);
