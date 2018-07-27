@@ -70,9 +70,11 @@ namespace mongols {
     public:
         void run(const std::function<bool(const mongols::request&)>& req_filter
                 , const std::function<void(const mongols::request&, mongols::response&)>& res_filter);
-        
+
         void set_session_expires(long long);
         void set_cache_expires(long long);
+        void set_enable_session(bool);
+        void set_enable_cache(bool);
     private:
         std::pair < std::string, bool> work(
                 const std::function<bool(const mongols::request&)>& req_filter
@@ -90,9 +92,9 @@ namespace mongols {
     private:
         mongols::tcp_server *server;
         size_t max_body_size;
-        mongols::cache::lru_cache<std::string, std::unordered_map<std::string,http_server::cache_t> > cache;
         mongols::redis redis;
-        long long session_expires,cache_expores;
+        long long session_expires, cache_expores;
+        bool enable_session,enable_cache;
 
 
     };

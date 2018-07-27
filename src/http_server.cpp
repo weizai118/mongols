@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <functional>
 #include <memory>
-#include <list>
 #include <chrono>
 
 #include "tcp_threading_server.hpp"
@@ -143,14 +142,16 @@ namespace mongols {
             , size_t thread_size
             , size_t max_body_size
             , int max_event_size)
-    : server(0), max_body_size(max_body_size), cache(1024), redis(), session_expires(3600), cache_expores(600) {
+    : server(0), max_body_size(max_body_size), redis(), session_expires(3600), cache_expores(600), enable_session(false), enable_cache(false) {
         if (thread_size > 0) {
             this->server = new tcp_threading_server(host, port, timeout, buffer_size, thread_size, max_event_size);
         } else {
             this->server = new tcp_server(host, port, timeout, buffer_size, max_event_size);
         }
         if (this->server) {
-            this->redis.connect();
+            if (this->enable_session || this->enable_cache) {
+                this->redis.connect();
+            }
         }
 
     }
@@ -314,46 +315,47 @@ namespace mongols {
                 if (!req.param.empty()) {
                     mongols::parse_param(req.param, req.form);
                 }
-                std::string session_val;
-                if ((tmp = req.headers.find("Cookie")) != req.headers.end()) {
-                    mongols::parse_param(tmp->second, req.cookies, ';');
-                    if (this->redis.is_connected()&&(tmp = req.cookies.find(SESSION_NAME)) != req.cookies.end()) {
-                        session_val = tmp->second;
-                        if (this->redis.exists(tmp->second)) {
-                            this->redis.hgetall(tmp->second, req.session);
-                        } else {
-                            this->redis.hset(tmp->second, SESSION_NAME, tmp->second);
-                            this->redis.expire(tmp->second, this->session_expires);
-                        }
-                    }
-                } else {
-                    std::chrono::system_clock::time_point now_time = std::chrono::system_clock::now();
-                    std::time_t expire_time = std::chrono::system_clock::to_time_t(now_time + std::chrono::seconds(this->session_expires));
-                    std::string session_cookie;
-                    session_cookie.append(SESSION_NAME).append("=")
-                            .append(mongols::random_string(""))
-                            .append("; HttpOnly; Path=/; Expires=")
-                            .append(mongols::http_time(&expire_time));
-                    res.headers.insert(std::move(std::make_pair("Set-Cookie", session_cookie)));
-                }
 
-                std::string cache_k = std::move(mongols::md5(req.method + req.uri + "?" + req.param));
+                std::string session_val, cache_k;
 
-                if (this->cache.exists(cache_k)) {
-                    std::unordered_map<std::string, http_server::cache_t> cache_v;
-                    if (this->cache.try_get(cache_k, cache_v)) {
-                        for (const auto& i : cache_v) {
-                            if (!i.second.expired()) {
-                                req.cache[i.first] = i.second.get();
+                if (this->enable_session) {
+                    session_val;
+                    if ((tmp = req.headers.find("Cookie")) != req.headers.end()) {
+                        mongols::parse_param(tmp->second, req.cookies, ';');
+                        if (this->redis.is_connected()&&(tmp = req.cookies.find(SESSION_NAME)) != req.cookies.end()) {
+                            session_val = tmp->second;
+                            if (this->redis.exists(tmp->second)) {
+                                this->redis.hgetall(tmp->second, req.session);
                             } else {
-                                req.cache.erase(i.first);
+                                this->redis.hset(tmp->second, SESSION_NAME, tmp->second);
+                                this->redis.expire(tmp->second, this->session_expires);
                             }
                         }
+                    } else {
+                        std::chrono::system_clock::time_point now_time = std::chrono::system_clock::now();
+                        std::time_t expire_time = std::chrono::system_clock::to_time_t(now_time + std::chrono::seconds(this->session_expires));
+                        std::string session_cookie;
+                        session_cookie.append(SESSION_NAME).append("=")
+                                .append(mongols::random_string(""))
+                                .append("; HttpOnly; Path=/; Expires=")
+                                .append(mongols::http_time(&expire_time));
+                        res.headers.insert(std::move(std::make_pair("Set-Cookie", session_cookie)));
                     }
-                } else {
-                    this->cache.put(cache_k, std::unordered_map<std::string, http_server::cache_t>());
                 }
 
+                if (this->enable_cache) {
+                    cache_k = std::move(mongols::md5(req.method + req.uri + "?" + req.param));
+                    if (this->redis.is_connected()) {
+                        if (this->redis.exists(cache_k)) {
+                            this->redis.hgetall(cache_k, req.cache);
+                            std::unordered_map<std::string, http_server::cache_t> cache_v;
+                        } else {
+                            this->redis.hset(cache_k, "cache_key", cache_k);
+                            this->redis.expire(cache_k, this->cache_expores);
+                            req.cache["cache_key"] = cache_k;
+                        }
+                    }
+                }
                 if (!body.empty()&& (tmp = req.headers.find("Content-Type")) != req.headers.end()) {
                     if (tmp->second.size() != form_urlencoded_type_len
                             || tmp->second != form_urlencoded_type) {
@@ -366,19 +368,14 @@ namespace mongols {
 
                 res_filter(req, res);
 
-                if (this->redis.is_connected()&&!res.session.empty()) {
-                    this->redis.hmset(session_val, res.session);
+                if (this->enable_session) {
+                    if (this->redis.is_connected()&&!res.session.empty()) {
+                        this->redis.hmset(session_val, res.session);
+                    }
                 }
-
-                if (!res.cache.empty()) {
-                    if (this->cache.exists(cache_k)) {
-                        std::unordered_map<std::string, http_server::cache_t> cache_v;
-                        if (this->cache.try_get(cache_k, cache_v)) {
-                            for (auto& i : res.cache) {
-                                cache_v[i.first] = std::move(http_server::cache_t(i.second, this->cache_expores));
-                            }
-                        }
-                        this->cache.put(cache_k, cache_v);
+                if (this->enable_cache) {
+                    if (!res.cache.empty() && this->redis.is_connected()) {
+                        this->redis.hmset(cache_k, res.cache);
                     }
                 }
 
@@ -408,6 +405,20 @@ namespace mongols {
 
     void http_server::set_session_expires(long long expires) {
         this->session_expires = expires;
+    }
+
+    void http_server::set_enable_cache(bool b) {
+        this->enable_cache = b;
+        if (!this->redis.is_connected()) {
+            this->redis.connect();
+        }
+    }
+
+    void http_server::set_enable_session(bool b) {
+        this->enable_session = b;
+        if (!this->redis.is_connected()) {
+            this->redis.connect();
+        }
     }
 
 
