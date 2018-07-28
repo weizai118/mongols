@@ -319,7 +319,6 @@ namespace mongols {
                 std::string session_val, cache_k;
 
                 if (this->enable_session) {
-                    session_val;
                     if ((tmp = req.headers.find("Cookie")) != req.headers.end()) {
                         mongols::parse_param(tmp->second, req.cookies, ';');
                         if (this->redis.is_connected()&&(tmp = req.cookies.find(SESSION_NAME)) != req.cookies.end()) {
