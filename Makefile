@@ -15,8 +15,8 @@ OBJ=$(COBJ) $(CXXOBJ) $(CCOBJ) $(CPPOBJ)
 CC=gcc
 CXX=g++
 
-CFLAGS+=-O3 -std=c11 -Wall -fPIC 
-CFLAGS+=-Iinc/mongols -Iinc/mongols/lib
+CFLAGS+=-O3 -std=c11 -Wall -fPIC -DZSTD_MULTITHREAD 
+CFLAGS+=-Iinc/mongols -Iinc/mongols/lib -Iinc/mongols/lib/zstd -Isrc/zstd/common
 CFLAGS+=`pkg-config --cflags hiredis openssl`
 CXXFLAGS+=-O3 -std=c++11 -Wall -fPIC 
 CXXFLAGS+=-Iinc/mongols -Iinc/mongols/lib -Isrc/MPFDParser
