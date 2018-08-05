@@ -1,5 +1,5 @@
-#ifndef THEAD_POOL_HPP
-#define THEAD_POOL_HPP
+#ifndef THREAD_POOL_HPP
+#define THREAD_POOL_HPP
 
 #include <thread>
 #include <functional>
@@ -85,5 +85,5 @@ namespace mongols {
     };
 }
 
-#endif /* THEAD_POOL_HPP */
+#endif /* THREAD_POOL_HPP */
 
